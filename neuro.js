@@ -525,6 +525,7 @@
         Collection = new Class({
             Extends: Collection,
             options: {
+                request: {},
                 Model: Model
             },
             setup: function(models, options) {

@@ -1,3 +1,7 @@
+/**
+ * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
+ */
+
 var REST = function(type){
     return function(){
         this[type].apply(this, arguments);
