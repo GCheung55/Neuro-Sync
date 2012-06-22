@@ -43,7 +43,7 @@ var Sync = new Class({
 
     update: REST('PUT')
 
-    //Delete already exists on Request, so no need to add that
+    // Delete already exists on Request
 });
 
 module.exports = Sync;
