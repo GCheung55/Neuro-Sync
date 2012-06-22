@@ -41,9 +41,9 @@ var Sync = new Class({
 
     read: REST('GET'),
 
-    update: REST('PUT'),
+    update: REST('PUT')
 
-    delete: REST('DELETE')
+    //Delete already exists on Request, so no need to add that
 });
 
 module.exports = Sync;
