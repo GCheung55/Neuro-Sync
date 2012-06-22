@@ -203,13 +203,6 @@ buster.testCase('Neuro Model', {
             this.mockComparatorModel = new Neuro.Model(this.mockComparatorData);
         },
 
-        'Clone should return a copy of data': function(){
-            var test = this.mockModelWithData.clone(),
-                result = this.mockModelWithData._data;
-
-            assert.equals(test, result);
-        },
-
         'Subet should return a subset of data': function(){
             var model = this.mockComparatorModel,
                 test = model.subset(['a', 'b']),
