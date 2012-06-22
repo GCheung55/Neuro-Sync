@@ -20,7 +20,7 @@ var createGetter = function(type){
     }.overloadGetter();
 };
 
-var Model = exports.Model = new Class({
+var Model = new Class({
     Implements: [Events, Options, Silence],
 
     _data: {},
@@ -161,9 +161,7 @@ var Model = exports.Model = new Class({
      * @return {Object}
      */
     getData: function(){
-        /** Should the data be cloned instead of referenced? */
-        return this.clone();
-        //return this._data;
+        return Object.clone(this._data);
     },
     
     _setPreviousData: function(){
@@ -243,7 +241,7 @@ var Model = exports.Model = new Class({
     },
 
     toJSON: function(){
-        return this.clone();
+        return this.getData();
     },
 
     setAccessor: function(key, val){
@@ -264,10 +262,11 @@ var Model = exports.Model = new Class({
     }
 });
 
-['clone', 'subset', 'map', 'filter', 'every', 'some', 'keys', 'values', 'getLength', 'keyOf', 'contains', 'toQueryString'].each(function(method){
+['subset', 'map', 'filter', 'every', 'some', 'keys', 'values', 'getLength', 'keyOf', 'contains', 'toQueryString'].each(function(method){
     Model.implement(method, function(){
         return Object[method].apply( Object, [this._data].append( Array.from(arguments) ) );
     });
 });
 
+module.exports = Model;
 // }(typeof exports != 'undefined' ? exports : window));
