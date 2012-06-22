@@ -12,6 +12,8 @@
 })({
     "0": function(require, module, exports, global) {
         var Model = require("1"), Collection = require("4"), Sync = require("5");
+        Model.Sync = require("6");
+        Collection.Sync = require("7");
         exports = module.exports = {
             Model: Model,
             Collection: Collection,
@@ -424,9 +426,148 @@
             },
             create: REST("POST"),
             read: REST("GET"),
-            update: REST("PUT"),
-            "delete": REST("DELETE")
+            update: REST("PUT")
         });
         module.exports = Sync;
+    },
+    "6": function(require, module, exports, global) {
+        var Model = require("1"), Sync = require("5");
+        Model = new Class({
+            Extends: Model,
+            _new: true,
+            options: {
+                request: {},
+                isNew: true
+            },
+            isNew: function() {
+                return this._new;
+            },
+            setNew: function(bool) {
+                this._new = !!bool;
+                return this;
+            },
+            setup: function(data, options) {
+                this.parent(data, options);
+                this.setNew(this.options.isNew);
+                this.setupSync(this.options.request);
+                return this;
+            },
+            setupSync: function(options) {
+                var _this = this, events = {
+                    request: function() {
+                        _this.fireEvent("sync:request", [ this, _this ]);
+                    },
+                    success: function(response) {
+                        _this.fireEvent("sync", [ response, _this ]);
+                    },
+                    failure: function() {
+                        _this.fireEvent("sync:failure", [ this, _this ]);
+                    },
+                    error: function() {
+                        _this.fireEvent("sync:error", [ this, _this ]);
+                    }
+                }, request = new Sync(this.options.request);
+                this.request = request.addEvents(events);
+                return this;
+            },
+            sync: function(type, options, callback) {
+                var data = this.toJSON();
+                if (!options) {
+                    options = {};
+                }
+                options.data = Object.merge({}, options.data, data);
+                this.request.sync(type, options, callback);
+                return this;
+            },
+            save: function(prop, val, options) {
+                if (typeOf(prop) == "object" && typeOf(val) == "object") {
+                    options = val;
+                    val = undefined;
+                }
+                var isNew = this.isNew();
+                method = [ "create", "update" ][+isNew];
+                if (prop) {
+                    this.set(prop, val);
+                }
+                this.sync(method, options, function(response, model) {
+                    if (response) {
+                        model.set(response);
+                    }
+                    model.fireEvent("save", arguments);
+                    model.fireEvent(method);
+                });
+                isNew && this.setNew(false);
+                return this;
+            },
+            fetch: function(options) {
+                this.sync("read", options, function(response, model) {
+                    if (response) {
+                        model.set(response);
+                    }
+                    model.setNew(false);
+                    model.fireEvent("fetch", arguments);
+                });
+                return this;
+            },
+            destroy: function(options) {
+                this.request.cancel();
+                this.sync("delete", options, function(response, model) {
+                    model.fireEvent("delete", arguments);
+                });
+                this.parent();
+                return this;
+            }
+        });
+        module.exports = Model;
+    },
+    "7": function(require, module, exports, global) {
+        var Model = require("6"), Collection = require("4"), Sync = require("5");
+        Collection = new Class({
+            Extends: Collection,
+            options: {
+                Model: Model
+            },
+            setup: function(models, options) {
+                this.parent(models, options);
+                this.setupSync();
+            },
+            setupSync: function(options) {
+                var _this = this, events = {
+                    request: function() {
+                        _this.fireEvent("sync:request", [ this, _this ]);
+                    },
+                    success: function(response) {
+                        _this.fireEvent("sync", [ response, _this ]);
+                    },
+                    failure: function() {
+                        _this.fireEvent("sync:failure", [ this, _this ]);
+                    },
+                    error: function() {
+                        _this.fireEvent("sync:error", [ this, _this ]);
+                    }
+                }, request = new Sync(this.options.request);
+                this.request = request.addEvents(events);
+                return this;
+            },
+            sync: function(type, options, callback) {
+                var data = this.toJSON();
+                if (!options) {
+                    options = {};
+                }
+                options.data = Object.merge({}, options.data, data);
+                this.request.sync(type, options, callback);
+                return this;
+            },
+            fetch: function(options) {
+                this.sync("read", options, function(response, collection) {
+                    if (response) {
+                        collection.add(response);
+                    }
+                    collection.fireEvent("fetch", arguments);
+                });
+                return this;
+            }
+        });
+        module.exports = Collection;
     }
 });
