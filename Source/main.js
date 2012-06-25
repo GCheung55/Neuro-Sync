@@ -1,12 +1,6 @@
-var Model = require('./Model'),
-    Collection = require('./Collection'),
-    Sync = require('./Sync');
+var Neuro = require('./Neuro');
 
-Model.Sync = require('./Sync/Model');
-Collection.Sync = require('./Sync/Collection');
+Neuro.Model = require('./Model');
+Neuro.Collection = require('./Collection');
 
-exports = module.exports = {
-    Model: Model,
-    Collection: Collection,
-    Sync: Sync
-};
+exports = module.exports = Neuro;
