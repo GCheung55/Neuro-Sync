@@ -15,6 +15,8 @@ var Collection = new Class({
         // onRemove: function(){},
         // onEmpty: function(){},
         Model: Model,
+        // Model Options
+        modelOptions: undefined,
         silent: false
     },
 
@@ -51,7 +53,7 @@ var Collection = new Class({
      * @return {Class} Collection Instance
      */
     _add: function(model){
-        model = new this._Model(model);
+        model = new this._Model(model, this.options.modelOptions);
 
         if (!this.hasModel(model)) {
 
@@ -166,7 +168,7 @@ var Collection = new Class({
             index = this.indexOf(oldModel);
 
             if (index > -1) {
-                newModel = new this._Model(newModel);
+                newModel = new this._Model(newModel, this.options.modelOptions);
 
                 this._models.splice(index, 1, newModel);
 
