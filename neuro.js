@@ -11,17 +11,17 @@
     window["Neuro"] = require("0");
 })({
     "0": function(require, module, exports, global) {
-        var Model = require("1"), Collection = require("4"), Sync = require("5");
-        Model.Sync = require("6");
-        Collection.Sync = require("7");
-        exports = module.exports = {
-            Model: Model,
-            Collection: Collection,
-            Sync: Sync
-        };
+        var Neuro = require("1");
+        Neuro.Model = require("2");
+        Neuro.Collection = require("5");
+        exports = module.exports = Neuro;
     },
     "1": function(require, module, exports, global) {
-        var Is = require("2").Is, Silence = require("3");
+        var Neuro = {};
+        exports = module.exports = Neuro;
+    },
+    "2": function(require, module, exports, global) {
+        var Is = require("3").Is, Silence = require("4");
         var createGetter = function(type) {
             var isPrevious = type == "_previousData" || void 0;
             return function(prop) {
@@ -156,7 +156,7 @@
         });
         module.exports = Model;
     },
-    "2": function(require, module, exports, global) {
+    "3": function(require, module, exports, global) {
         (function(context) {
             var toString = Object.prototype.toString, hasOwnProperty = Object.prototype.hasOwnProperty, oldType = window.Type, Is = context.Is = {};
             var Type = window.Type = function(name, object) {
@@ -266,7 +266,7 @@
             })(Is);
         })(typeof exports != "undefined" ? exports : window);
     },
-    "3": function(require, module, exports, global) {
+    "4": function(require, module, exports, global) {
         var Silence = new Class({
             _silent: false,
             silence: function(silent) {
@@ -279,8 +279,8 @@
         });
         exports = module.exports = Silence;
     },
-    "4": function(require, module, exports, global) {
-        var Model = require("1"), Silence = require("3");
+    "5": function(require, module, exports, global) {
+        var Model = require("2"), Silence = require("4");
         var Collection = new Class({
             Implements: [ Events, Options, Silence ],
             _models: [],
@@ -391,183 +391,6 @@
             Collection.implement(method, function() {
                 return Array.prototype[method].apply(this._models, arguments);
             });
-        });
-        module.exports = Collection;
-    },
-    "5": function(require, module, exports, global) {
-        var REST = function(type) {
-            return function() {
-                this[type].apply(this, arguments);
-                return this;
-            };
-        };
-        var Sync = new Class({
-            Extends: Request.JSON,
-            sync: function(type, options, callback) {
-                if (callback && typeOf(callback) == "function") {
-                    this.attachEventOnce("sync", callback);
-                }
-                this[type ? type : "update"](options);
-                return this;
-            },
-            attachEventOnce: function(type, fnc) {
-                var once, cancel;
-                cancel = function() {
-                    this.removeEvent(type, once);
-                    this.removeEvent("cancel", cancel);
-                };
-                once = function() {
-                    fnc.apply(this, arguments);
-                    cancel.call(this);
-                };
-                this.addEvent(type, once);
-                this.addEvent("cancel", cancel);
-                return this;
-            },
-            create: REST("POST"),
-            read: REST("GET"),
-            update: REST("PUT")
-        });
-        module.exports = Sync;
-    },
-    "6": function(require, module, exports, global) {
-        var Model = require("1"), Sync = require("5");
-        Model = new Class({
-            Extends: Model,
-            _new: true,
-            options: {
-                request: {},
-                isNew: true
-            },
-            isNew: function() {
-                return this._new;
-            },
-            setNew: function(bool) {
-                this._new = !!bool;
-                return this;
-            },
-            setup: function(data, options) {
-                this.parent(data, options);
-                this.setNew(this.options.isNew);
-                this.setupSync(this.options.request);
-                return this;
-            },
-            setupSync: function(options) {
-                var _this = this, events = {
-                    request: function() {
-                        _this.fireEvent("sync:request", [ this, _this ]);
-                    },
-                    success: function(response) {
-                        _this.fireEvent("sync", [ response, _this ]);
-                    },
-                    failure: function() {
-                        _this.fireEvent("sync:failure", [ this, _this ]);
-                    },
-                    error: function() {
-                        _this.fireEvent("sync:error", [ this, _this ]);
-                    }
-                }, request = new Sync(this.options.request);
-                this.request = request.addEvents(events);
-                return this;
-            },
-            sync: function(type, options, callback) {
-                var data = this.toJSON();
-                if (!options) {
-                    options = {};
-                }
-                options.data = Object.merge({}, options.data, data);
-                this.request.sync(type, options, callback);
-                return this;
-            },
-            save: function(prop, val, options) {
-                if (typeOf(prop) == "object" && typeOf(val) == "object") {
-                    options = val;
-                    val = undefined;
-                }
-                var isNew = this.isNew();
-                method = [ "create", "update" ][+isNew];
-                if (prop) {
-                    this.set(prop, val);
-                }
-                this.sync(method, options, function(response, model) {
-                    if (response) {
-                        model.set(response);
-                    }
-                    model.fireEvent("save", arguments);
-                    model.fireEvent(method);
-                });
-                isNew && this.setNew(false);
-                return this;
-            },
-            fetch: function(options) {
-                this.sync("read", options, function(response, model) {
-                    if (response) {
-                        model.set(response);
-                    }
-                    model.setNew(false);
-                    model.fireEvent("fetch", arguments);
-                });
-                return this;
-            },
-            destroy: function(options) {
-                this.request.cancel();
-                this.sync("delete", options, function(response, model) {
-                    model.fireEvent("delete", arguments);
-                });
-                this.parent();
-                return this;
-            }
-        });
-        module.exports = Model;
-    },
-    "7": function(require, module, exports, global) {
-        var Model = require("6"), Collection = require("4"), Sync = require("5");
-        Collection = new Class({
-            Extends: Collection,
-            options: {
-                request: {},
-                Model: Model
-            },
-            setup: function(models, options) {
-                this.parent(models, options);
-                this.setupSync();
-            },
-            setupSync: function(options) {
-                var _this = this, events = {
-                    request: function() {
-                        _this.fireEvent("sync:request", [ this, _this ]);
-                    },
-                    success: function(response) {
-                        _this.fireEvent("sync", [ response, _this ]);
-                    },
-                    failure: function() {
-                        _this.fireEvent("sync:failure", [ this, _this ]);
-                    },
-                    error: function() {
-                        _this.fireEvent("sync:error", [ this, _this ]);
-                    }
-                }, request = new Sync(this.options.request);
-                this.request = request.addEvents(events);
-                return this;
-            },
-            sync: function(type, options, callback) {
-                var data = this.toJSON();
-                if (!options) {
-                    options = {};
-                }
-                options.data = Object.merge({}, options.data, data);
-                this.request.sync(type, options, callback);
-                return this;
-            },
-            fetch: function(options) {
-                this.sync("read", options, function(response, collection) {
-                    if (response) {
-                        collection.add(response);
-                    }
-                    collection.fireEvent("fetch", arguments);
-                });
-                return this;
-            }
         });
         module.exports = Collection;
     }
