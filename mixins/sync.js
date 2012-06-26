@@ -9,6 +9,7 @@ var SyncMix = new Class({
         var _this = this,
             id = 0,
             incrementId = function(){id++;},
+            getOnceId = function(){return id + 1;},
             events = {
                 request: function(){
                     incrementId();
@@ -25,15 +26,13 @@ var SyncMix = new Class({
                 },
                 sync: function(){
                     _this.signalSync(response);
-                    _this.fireEvent('sync:' + this.syncId, response);
+                    _this.fireEvent('sync:' + getOnceId(), response);
                 }
             },
             request = new Sync(Object.merge({}, this.options.request, options || {}));
 
         // var id = 0;
-        this.getOnceId = function(){
-            return id + 1;
-        };
+        this.getOnceId = getOnceId;
 
         // this.incrementOnceId = function(){
         //     onceId++;
@@ -94,7 +93,7 @@ var SyncMix = new Class({
 
     cancel: function(){
         this.request.cancel();
-        this.fireEvent('sync:' + this.getOnceId() );
+        this.fireEvent('sync:' + this.getOnceId());
         return this;
     },
 

@@ -508,6 +508,8 @@
             setSync: function(options) {
                 var _this = this, id = 0, incrementId = function() {
                     id++;
+                }, getOnceId = function() {
+                    return id + 1;
                 }, events = {
                     request: function() {
                         incrementId();
@@ -524,12 +526,10 @@
                     },
                     sync: function() {
                         _this.signalSync(response);
-                        _this.fireEvent("sync:" + this.syncId, response);
+                        _this.fireEvent("sync:" + getOnceId(), response);
                     }
                 }, request = new Sync(Object.merge({}, this.options.request, options || {}));
-                this.getOnceId = function() {
-                    return id + 1;
-                };
+                this.getOnceId = getOnceId;
                 this.request = request.addEvents(events);
                 return this;
             },
