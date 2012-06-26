@@ -479,7 +479,7 @@
             fetch: function(callback, reset) {
                 var _this = this, data = this.toJSON();
                 this.sync("read", data, function(response) {
-                    _this.syncFetch.call(_this, response, callback, reset);
+                    _this._syncFetch.call(_this, response, callback, reset);
                     _this.fireEvent("read", arguments);
                 });
                 return this;
@@ -504,7 +504,20 @@
     },
     "9": function(require, module, exports, global) {
         var Sync = require("7");
+        var SyncSignals = {}, signalSyncPrefix = "signalSync", syncPrefix = "sync:", syncFnc = function(str) {
+            str = syncPrefix + str.toLowerCase();
+            return function() {
+                this.fireEvent(str, arguments);
+                return this;
+            };
+        };
+        SyncSignals[signalSyncPrefix] = syncFnc("");
+        [ "Request", "Complete", "Success", "Failure", "Error" ].each(function(item) {
+            SyncSignals[signalSyncPrefix + item] = syncFnc(item);
+        });
+        SyncSignals = new Class(SyncSignals);
         var SyncMix = new Class({
+            Implements: [ SyncSignals ],
             setSync: function(options) {
                 var _this = this, id = 0, incrementId = function() {
                     id++;
@@ -517,6 +530,9 @@
                     },
                     complete: function(response) {
                         _this.signalSyncComplete(response);
+                    },
+                    success: function(response) {
+                        _this.signalSyncSuccess(response);
                     },
                     failure: function() {
                         _this.signalSyncFailure();
@@ -563,25 +579,6 @@
             cancel: function() {
                 this.request.cancel();
                 this.fireEvent("sync:" + this.getOnceId());
-                return this;
-            },
-            signalSyncRequest: function() {
-                this.fireEvent("sync:request", arguments);
-            },
-            signalSync: function() {
-                this.fireEvent("sync", arguments);
-                return this;
-            },
-            signalSyncComplete: function() {
-                this.fireEvent("sync:complete", arguments);
-                return this;
-            },
-            signalSyncError: function() {
-                this.fireEvent("sync:error", arguments);
-                return this;
-            },
-            signalSyncFailure: function() {
-                this.fireEvent("sync:failure", arguments);
                 return this;
             }
         });
