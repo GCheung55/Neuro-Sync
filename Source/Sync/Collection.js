@@ -10,32 +10,35 @@
  * 
  */
 
-var Model = require('./Model'),
-    Collection = require('../Collection'),
+var Neuro = require('../Neuro'),
     Sync = require('../Sync');
 
-Collection = new Class({
-    Extends: Collection,
+var Collection = new Class({
+    Extends: Neuro.Collection,
 
     options: {
         request: {},
-        Model: Model
+        Model: Neuro.Model
     },
 
     setup: function(models, options){
         this.parent(models, options);
 
-        this.setupSync();
+        this.setSync();
     },
 
-    setupSync: function(options){
+    setSync: function(options){
         var _this = this,
             events = {
                 request: function(){
                     _this.fireEvent('sync:request', [this, _this]);
                 },
+                complete: function(response){
+                    _this.fireEvent('sync:complete', [response, _this]);
+                },
                 success: function(response){
                     _this.fireEvent('sync', [response, _this]);
+                    _this.fireEvent('sync:' + this.syncId, [response, _this]);
                 },
                 failure: function(){
                     _this.fireEvent('sync:failure', [this, _this]);
@@ -44,11 +47,15 @@ Collection = new Class({
                     _this.fireEvent('sync:error', [this, _this]);
                 }
             },
-            request = new Sync(this.options.request);
+            request = new Sync(Object.merge({}, this.options.request, options || {}));
 
         this.request = request.addEvents(events);
 
         return this;
+    },
+
+    parse: function(response, collection){
+        return response;
     },
 
     sync: function(type, options, callback){
@@ -63,15 +70,27 @@ Collection = new Class({
         return this;
     },
 
-    fetch: function(options){
+    _syncFetch: function(response, collection, callback){
+        // If data returns, set it
+        if (response) {
+            reset && collection.empty();
+            collection.add(collection.parse.apply(collection, arguments));
+        }
+
+        collection.fireEvent('fetch', arguments);
+
+        callback && callback.call(this, response, collection);
+
+        return this;
+    },
+
+    fetch: function(options, callback){
+        var _this = this;
+
         // Issue read command to server
         this.sync('read', options, function(response, collection){
-            // If data returns, set it
-            if (response) {
-                collection.add(response);
-            }
-
-            collection.fireEvent('fetch', arguments);
+            _this._syncFetch.call(_this, response, collection, callback);
+            _this.fireEvent('read', arguments)
         });
 
         return this;
