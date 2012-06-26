@@ -101,7 +101,7 @@ buster.testCase('Neuro Collection', {
         collection.add(this.mockData);
 
         assert.called(spy);
-        assert.calledWith(spy, collection, collection.get(0));
+        assert.calledWith(spy, collection.get(0));
     },
 
     'should trigger a function that has been attached to the remove event': function(){
@@ -116,7 +116,7 @@ buster.testCase('Neuro Collection', {
         collection.remove( model );
 
         assert.called(spy);
-        assert.calledWith(spy, collection, model);
+        assert.calledWith(spy, model);
     },
 
     'should trigger a function that has been attached to the empty event': function(){
@@ -128,7 +128,7 @@ buster.testCase('Neuro Collection', {
         collection.empty();
 
         assert.called(spy);
-        assert.calledWith(spy, collection);
+        assert.calledWith(spy);
         assert.equals(collection._models.length, 0);
     },
 
@@ -147,10 +147,10 @@ buster.testCase('Neuro Collection', {
         collection.replace(oldModel, newModel, true);
 
         assert.called(addSpy);
-        assert.calledWith(addSpy, collection, newModel);
+        assert.calledWith(addSpy, newModel);
 
         assert.called(removeSpy);
-        assert.calledWith(removeSpy, collection, oldModel);
+        assert.calledWith(removeSpy, oldModel);
     },
 
     'should enable/disable signal execution with the silence method': function(){
@@ -169,9 +169,9 @@ buster.testCase('Neuro Collection', {
 
         assert.equals(collection._models.length, 2);
 
-        assert.calledWith(spy, collection, model1);
+        assert.calledWith(spy, model1);
 
-        refute.calledWith(spy, collection, model2);
+        refute.calledWith(spy, model2);
     },
 
     'Array Methods': {

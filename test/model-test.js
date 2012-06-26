@@ -151,7 +151,7 @@ buster.testCase('Neuro Model', {
         model.set('age', 30);
 
         assert.called(spy);
-        assert.calledWith(spy, model);
+        assert.calledWith(spy);
     },
 
     'should trigger a change event that notifies what property and value was changed': function(){
@@ -161,7 +161,7 @@ buster.testCase('Neuro Model', {
         model.set('age', 30);
 
         assert.called(spy);
-        assert.calledWith(spy, model, 'age', 30);
+        assert.calledWith(spy, 'age', 30);
     },
 
     'should trigger an event when the model is destroyed': function(){
@@ -171,7 +171,7 @@ buster.testCase('Neuro Model', {
         model.destroy();
 
         assert.called(spy);
-        assert.calledWith(spy, model);
+        assert.calledWith(spy);
     },
 
     'should enable/disable signal execution with the silence method': function(){
@@ -189,7 +189,7 @@ buster.testCase('Neuro Model', {
         assert.equals(model.get('a'), 'rts');
         assert.equals(model.get('b'), {});
 
-        assert.calledOnceWith(spy, model);
+        assert.calledOnceWith(spy);
     },
 
     'Object Methods': {

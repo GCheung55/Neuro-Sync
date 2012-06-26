@@ -226,17 +226,17 @@ var Model = new Class({
     },
     
     signalChange: function(){
-        !this.isSilent() && this.fireEvent('change', this);
+        !this.isSilent() && this.fireEvent('change');
         return this;
     },
     
     signalChangeProperty: function(prop, val){
-        !this.isSilent() && this.fireEvent('change:' + prop, [this, prop, val]);
+        !this.isSilent() && this.fireEvent('change:' + prop, [prop, val]);
         return this;
     },
     
     signalDestroy: function(){
-        !this.isSilent() && this.fireEvent('destroy', this);
+        !this.isSilent() && this.fireEvent('destroy');
         return this;
     },
 

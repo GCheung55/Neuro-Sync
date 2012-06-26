@@ -192,17 +192,17 @@ var Collection = new Class({
     },
     
     signalAdd: function(model){
-        !this.isSilent() && this.fireEvent('add', [this, model]);
+        !this.isSilent() && this.fireEvent('add', model);
         return this;
     },
     
     signalRemove: function(model){
-        !this.isSilent() && this.fireEvent('remove', [this, model]);
+        !this.isSilent() && this.fireEvent('remove', model);
         return this;
     },
     
     signalEmpty: function(){
-        !this.isSilent() && this.fireEvent('empty', this);
+        !this.isSilent() && this.fireEvent('empty');
         return this;
     },
 

@@ -17,7 +17,9 @@
         exports = module.exports = Neuro;
     },
     "1": function(require, module, exports, global) {
-        var Neuro = {};
+        var Neuro = {
+            version: "0.1.x"
+        };
         exports = module.exports = Neuro;
     },
     "2": function(require, module, exports, global) {
@@ -122,15 +124,15 @@
                 return this;
             },
             signalChange: function() {
-                !this.isSilent() && this.fireEvent("change", this);
+                !this.isSilent() && this.fireEvent("change");
                 return this;
             },
             signalChangeProperty: function(prop, val) {
-                !this.isSilent() && this.fireEvent("change:" + prop, [ this, prop, val ]);
+                !this.isSilent() && this.fireEvent("change:" + prop, [ prop, val ]);
                 return this;
             },
             signalDestroy: function() {
-                !this.isSilent() && this.fireEvent("destroy", this);
+                !this.isSilent() && this.fireEvent("destroy");
                 return this;
             },
             toJSON: function() {
@@ -287,6 +289,7 @@
             _bound: {},
             options: {
                 Model: Model,
+                modelOptions: undefined,
                 silent: false
             },
             initialize: function(models, options) {
@@ -308,7 +311,7 @@
                 return this._models.contains(model);
             },
             _add: function(model) {
-                model = new this._Model(model);
+                model = new this._Model(model, this.options.modelOptions);
                 if (!this.hasModel(model)) {
                     model.addEvent("destroy", this._bound.remove);
                     this._models.push(model);
@@ -354,7 +357,7 @@
                 if (oldModel && newModel) {
                     index = this.indexOf(oldModel);
                     if (index > -1) {
-                        newModel = new this._Model(newModel);
+                        newModel = new this._Model(newModel, this.options.modelOptions);
                         this._models.splice(index, 1, newModel);
                         if (signal) {
                             this.signalAdd(newModel);
@@ -370,15 +373,15 @@
                 return this;
             },
             signalAdd: function(model) {
-                !this.isSilent() && this.fireEvent("add", [ this, model ]);
+                !this.isSilent() && this.fireEvent("add", model);
                 return this;
             },
             signalRemove: function(model) {
-                !this.isSilent() && this.fireEvent("remove", [ this, model ]);
+                !this.isSilent() && this.fireEvent("remove", model);
                 return this;
             },
             signalEmpty: function() {
-                !this.isSilent() && this.fireEvent("empty", this);
+                !this.isSilent() && this.fireEvent("empty");
                 return this;
             },
             toJSON: function() {
