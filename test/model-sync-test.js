@@ -21,6 +21,12 @@ buster.testCase('Neuro Sync Model', {
                         return data['fullName'];
                     }
                 }
+            },
+
+            // Proxying because _addEventOnce is protected
+            addEventOnce: function(){
+                this._addEventOnce.apply(this, arguments);
+                return this;
             }
         });
 
@@ -102,7 +108,58 @@ buster.testCase('Neuro Sync Model', {
         });
     },
 
-    'sync events (request, complete, sync, failure, error) should be set via request option': function(){
-        assert(true);
+    '_addEventOnce should attach an event that is removed once excuted': function(){
+        var spy = this.spy(),
+            model = this.mockModel,
+            test1 = 'first', test2 = 'second';
+
+        model.addEventOnce(function(){
+            spy.apply(this, arguments);
+        });
+
+        model.fireEvent('sync', test1);
+        model.fireEvent('sync', test2);
+
+        assert.calledOnceWith(spy, test1);
+        refute.calledOnceWith(spy, test2);
+    },
+
+    'cancel should remove the event added by addEventOnce': function(){
+        var spy = this.spy(),
+            model = this.mockModel,
+            test1 = 'first';
+        
+        model.addEventOnce(function(){
+            spy.apply(this, arguments);
+        });
+
+        model.cancel();
+
+        model.fireEvent('sync', test1);
+
+        refute.called(spy);
     }
 });
+
+
+    // 'cancel should remove the event added by addEventOnce during request': function(){
+    //     var spy = this.spy(),
+    //         syncObj = this.syncObj,
+    //         test1 = 'first';
+
+    //     syncObj.sync(undefined, {}, function(){
+    //         spy.apply(this, arguments);
+    //     });
+
+    //     // Request should be running
+    //     assert(syncObj.running);
+
+    //     syncObj.cancel();
+
+    //     // Request should no longer be running
+    //     refute(syncObj.running);
+
+    //     syncObj.fireEvent('sync', test1);
+
+    //     refute.called(spy);
+    // }

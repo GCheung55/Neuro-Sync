@@ -11,10 +11,13 @@
  */
 
 var Neuro = require('../Neuro'),
-    Sync = require('../Sync');
+    Sync = require('../Sync'),
+    Mixins = require('../../mixins/sync');
 
 var Model = new Class({
     Extends: Neuro.Model,
+
+    Implements: [Mixins.Sync],
 
     _new: true,
 
@@ -44,77 +47,36 @@ var Model = new Class({
         return this;
     },
 
-    setSync: function(options){
-        var _this = this,
-            events = {
-                request: function(){
-                    _this.fireEvent('sync:request', [this, _this]);
-                },
-                complete: function(response){
-                    _this.fireEvent('sync:complete', [response, _this]);
-                },
-                success: function(response){
-                    _this.fireEvent('sync', [response, _this]);
-                    _this.fireEvent('sync:' + this.syncId, [response, _this]);
-                },
-                failure: function(){
-                    _this.fireEvent('sync:failure', [this, _this]);
-                },
-                error: function(){
-                    _this.fireEvent('sync:error', [this, _this]);
-                }
-            },
-            request = new Sync(Object.merge({}, this.options.request, options || {}));
-
-        this.request = request.addEvents(events);
-
-        return this;
-    },
-
-    sync: function(type, options, callback){
-        var data = this.toJSON();
-
-        if (!options) { options = {}; }
-
-        options.data = Object.merge({}, options.data, data);
-
-        this.request.sync(type, options, callback);
-
-        return this;
-    },
-
-    parse: function(response, model){
-        return response;
-    },
-
-    _syncSave: function(response, model, callback){
+    _syncSave: function(response, callback){
         // If data returns, set it
         if (response) {
-            model.set(model.parse.apply(model, arguments));
+            this.set(this.parse.apply(this, response));
         }
 
-        model.fireEvent('save', arguments);
+        this.fireEvent('save', response);
 
-        callback && callback.call(this, request, model);
+        callback && callback.call(this, response);
 
         return this;
     },
 
-    save: function(options, prop, val, fnc){
-
+    save: function(prop, val, callback){
         // Determine whether method is create or update;
         var _this = this,
             isNew = this.isNew(),
-            method = ['create', 'update'][+isNew];
+            method = ['create', 'update'][+isNew],
+            data;
 
         // Set data if property exists
         if (prop) {
             this.set(prop, val);
         }
 
+        data = this.toJSON();
+
         // Issue create/update command to server
-        this.sync(method, options, function(response, model){
-            _this._syncSave.call(_this, response, model, fnc);
+        this.sync(method, data, function(response){
+            _this._syncSave.call(_this, response, callback);
             _this.fireEvent(method, arguments);
         });
 
@@ -124,36 +86,39 @@ var Model = new Class({
         return this;
     },
 
-    _syncFetch: function(response, model, callback){
+    _syncFetch: function(response, callback, reset){
         // If data returns, set it
         if (response) {
-            model.set(model.parse.apply(model, arguments));
+            // Reset to what the default is before setting the response
+            reset && (this._data = Object.merge({}, this.options.defaults));
+            this.set(this.parse.apply(this, arguments));
         }
 
-        model.setNew(false);
-        model.fireEvent('fetch', arguments);
+        this.setNew(false);
+        this.fireEvent('fetch', response);
 
-        callback && callback.call(this, response, model);
+        callback && callback.call(this, response);
 
         return this;
     },
 
-    fetch: function(options, callback){
-        var _this = this;
+    fetch: function(callback, reset){
+        var _this = this,
+            data = this.toJSON();
 
         // Issue read command to server
-        this.sync('read', options, function(response, model){
-            _this.syncFetch.call(_this, response, model, callback);
+        this.sync('read', data, function(response){
+            _this.syncFetch.call(_this, response, callback, reset);
             _this.fireEvent('read', arguments);
         });
 
         return this;
     },
 
-    _syncDestroy: function(response, model, callback){
-        model.fireEvent('delete', arguments);
+    _syncDestroy: function(response, callback){
+        this.fireEvent('delete', arguments);
 
-        callback && callback.call(this, response, model);
+        callback && callback.call(this, response);
         return this;
     },
 
@@ -164,8 +129,8 @@ var Model = new Class({
         this.request.cancel();
 
         // Issue delete command to server
-        this.sync('delete', options, function(){
-            _this._syncDestroy.call(_this, response, model, callback);
+        this.sync('delete', options, function(response){
+            _this._syncDestroy.call(_this, response, callback);
             _this.fireEvent('delete', arguments);
         });
 

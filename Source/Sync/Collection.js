@@ -11,10 +11,13 @@
  */
 
 var Neuro = require('../Neuro'),
-    Sync = require('../Sync');
+    Sync = require('../Sync'),
+    Mixins = require('../../mixins/sync');
 
 var Collection = new Class({
     Extends: Neuro.Collection,
+
+    Implements: [Mixins.Sync],
 
     options: {
         request: {},
@@ -27,69 +30,27 @@ var Collection = new Class({
         this.setSync();
     },
 
-    setSync: function(options){
-        var _this = this,
-            events = {
-                request: function(){
-                    _this.fireEvent('sync:request', [this, _this]);
-                },
-                complete: function(response){
-                    _this.fireEvent('sync:complete', [response, _this]);
-                },
-                success: function(response){
-                    _this.fireEvent('sync', [response, _this]);
-                    _this.fireEvent('sync:' + this.syncId, [response, _this]);
-                },
-                failure: function(){
-                    _this.fireEvent('sync:failure', [this, _this]);
-                },
-                error: function(){
-                    _this.fireEvent('sync:error', [this, _this]);
-                }
-            },
-            request = new Sync(Object.merge({}, this.options.request, options || {}));
-
-        this.request = request.addEvents(events);
-
-        return this;
-    },
-
-    parse: function(response, collection){
-        return response;
-    },
-
-    sync: function(type, options, callback){
-        var data = this.toJSON();
-
-        if (!options) { options = {}; }
-
-        options.data = Object.merge({}, options.data, data);
-
-        this.request.sync(type, options, callback);
-
-        return this;
-    },
-
-    _syncFetch: function(response, collection, callback){
+    _syncFetch: function(response, callback, reset){
         // If data returns, set it
         if (response) {
-            reset && collection.empty();
-            collection.add(collection.parse.apply(collection, arguments));
+            reset && this.empty();
+            this.add(this.parse.apply(this, response));
         }
 
-        collection.fireEvent('fetch', arguments);
+        this.fireEvent('fetch', response);
 
-        callback && callback.call(this, response, collection);
+        callback && callback.call(this, response);
 
         return this;
     },
 
-    fetch: function(options, callback){
-        var _this = this;
+    fetch: function(callback, reset){
+        var _this = this,
+            data = this.toJSON();
 
         // Issue read command to server
-        this.sync('read', options, function(response, collection){
-            _this._syncFetch.call(_this, response, collection, callback);
+        this.sync('read', data, function(response){
+            _this._syncFetch.call(_this, response, callback, reset);
             _this.fireEvent('read', arguments)
         });
 

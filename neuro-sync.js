@@ -14,7 +14,7 @@
         var Neuro = require("1");
         Neuro.Sync = require("7");
         Neuro.Model = require("8");
-        Neuro.Collection = require("9");
+        Neuro.Collection = require("a");
         exports = module.exports = Neuro;
     },
     "1": function(require, module, exports, global) {
@@ -131,15 +131,15 @@
                 return this;
             },
             signalChange: function() {
-                !this.isSilent() && this.fireEvent("change", this);
+                !this.isSilent() && this.fireEvent("change");
                 return this;
             },
             signalChangeProperty: function(prop, val) {
-                !this.isSilent() && this.fireEvent("change:" + prop, [ this, prop, val ]);
+                !this.isSilent() && this.fireEvent("change:" + prop, [ prop, val ]);
                 return this;
             },
             signalDestroy: function() {
-                !this.isSilent() && this.fireEvent("destroy", this);
+                !this.isSilent() && this.fireEvent("destroy");
                 return this;
             },
             toJSON: function() {
@@ -380,15 +380,15 @@
                 return this;
             },
             signalAdd: function(model) {
-                !this.isSilent() && this.fireEvent("add", [ this, model ]);
+                !this.isSilent() && this.fireEvent("add", model);
                 return this;
             },
             signalRemove: function(model) {
-                !this.isSilent() && this.fireEvent("remove", [ this, model ]);
+                !this.isSilent() && this.fireEvent("remove", model);
                 return this;
             },
             signalEmpty: function() {
-                !this.isSilent() && this.fireEvent("empty", this);
+                !this.isSilent() && this.fireEvent("empty");
                 return this;
             },
             toJSON: function() {
@@ -413,52 +413,20 @@
         };
         var Sync = new Class({
             Extends: Request.JSON,
-            options: {
-                link: "chain"
-            },
-            syncId: 0,
-            sync: function(type, options, callback) {
-                if (callback && typeOf(callback) == "function") {
-                    this.syncId++;
-                    this.addEventOnce("sync", callback);
-                }
-                this[type ? type : "update"](options);
-                return this;
-            },
-            addEventOnce: function(type, fnc) {
-                var syncId = this.syncId, cancelType = type + ":" + syncId, once, cancel;
-                cancel = function() {
-                    this.removeEvent(type, once);
-                    this.removeEvent(cancelType, cancel);
-                };
-                once = function() {
-                    fnc.apply(this, arguments);
-                    cancel.call(this);
-                };
-                this.addEvent(type, once);
-                this.addEvent(cancelType, cancel);
-                return this;
+            onSuccess: function() {
+                this.fireEvent("complete", arguments).fireEvent("success", arguments).fireEvent("sync", arguments).callChain();
             },
             create: REST("POST"),
             read: REST("GET"),
-            update: REST("PUT"),
-            cancel: function() {
-                if (!this.running) {
-                    this.fireEvent("cancel");
-                    this.fireEvent("sync:" + this.syncId);
-                    return this;
-                }
-                this.parent();
-                this.fireEvent("sync:" + this.syncId);
-                return this;
-            }
+            update: REST("PUT")
         });
         module.exports = Sync;
     },
     "8": function(require, module, exports, global) {
-        var Neuro = require("2"), Sync = require("7");
+        var Neuro = require("2"), Sync = require("7"), Mixins = require("9");
         var Model = new Class({
             Extends: Neuro.Model,
+            Implements: [ Mixins.Sync ],
             _new: true,
             options: {
                 request: {},
@@ -477,87 +445,55 @@
                 this.setSync(this.options.request);
                 return this;
             },
-            setSync: function(options) {
-                var _this = this, events = {
-                    request: function() {
-                        _this.fireEvent("sync:request", [ this, _this ]);
-                    },
-                    complete: function(response) {
-                        _this.fireEvent("sync:complete", [ response, _this ]);
-                    },
-                    success: function(response) {
-                        _this.fireEvent("sync", [ response, _this ]);
-                        _this.fireEvent("sync:" + this.syncId, [ response, _this ]);
-                    },
-                    failure: function() {
-                        _this.fireEvent("sync:failure", [ this, _this ]);
-                    },
-                    error: function() {
-                        _this.fireEvent("sync:error", [ this, _this ]);
-                    }
-                }, request = new Sync(Object.merge({}, this.options.request, options || {}));
-                this.request = request.addEvents(events);
-                return this;
-            },
-            sync: function(type, options, callback) {
-                var data = this.toJSON();
-                if (!options) {
-                    options = {};
-                }
-                options.data = Object.merge({}, options.data, data);
-                this.request.sync(type, options, callback);
-                return this;
-            },
-            parse: function(response, model) {
-                return response;
-            },
-            _syncSave: function(response, model, callback) {
+            _syncSave: function(response, callback) {
                 if (response) {
-                    model.set(model.parse.apply(model, arguments));
+                    this.set(this.parse.apply(this, response));
                 }
-                model.fireEvent("save", arguments);
-                callback && callback.call(this, request, model);
+                this.fireEvent("save", response);
+                callback && callback.call(this, response);
                 return this;
             },
-            save: function(options, prop, val, fnc) {
-                var _this = this, isNew = this.isNew(), method = [ "create", "update" ][+isNew];
+            save: function(prop, val, callback) {
+                var _this = this, isNew = this.isNew(), method = [ "create", "update" ][+isNew], data;
                 if (prop) {
                     this.set(prop, val);
                 }
-                this.sync(method, options, function(response, model) {
-                    _this._syncSave.call(_this, response, model, fnc);
+                data = this.toJSON();
+                this.sync(method, data, function(response) {
+                    _this._syncSave.call(_this, response, callback);
                     _this.fireEvent(method, arguments);
                 });
                 isNew && this.setNew(false);
                 return this;
             },
-            _syncFetch: function(response, model, callback) {
+            _syncFetch: function(response, callback, reset) {
                 if (response) {
-                    model.set(model.parse.apply(model, arguments));
+                    reset && (this._data = Object.merge({}, this.options.defaults));
+                    this.set(this.parse.apply(this, arguments));
                 }
-                model.setNew(false);
-                model.fireEvent("fetch", arguments);
-                callback && callback.call(this, response, model);
+                this.setNew(false);
+                this.fireEvent("fetch", response);
+                callback && callback.call(this, response);
                 return this;
             },
-            fetch: function(options, callback) {
-                var _this = this;
-                this.sync("read", options, function(response, model) {
-                    _this.syncFetch.call(_this, response, model, callback);
+            fetch: function(callback, reset) {
+                var _this = this, data = this.toJSON();
+                this.sync("read", data, function(response) {
+                    _this.syncFetch.call(_this, response, callback, reset);
                     _this.fireEvent("read", arguments);
                 });
                 return this;
             },
-            _syncDestroy: function(response, model, callback) {
-                model.fireEvent("delete", arguments);
-                callback && callback.call(this, response, model);
+            _syncDestroy: function(response, callback) {
+                this.fireEvent("delete", arguments);
+                callback && callback.call(this, response);
                 return this;
             },
             destroy: function(options, callback) {
                 var _this = this;
                 this.request.cancel();
-                this.sync("delete", options, function() {
-                    _this._syncDestroy.call(_this, response, model, callback);
+                this.sync("delete", options, function(response) {
+                    _this._syncDestroy.call(_this, response, callback);
                     _this.fireEvent("delete", arguments);
                 });
                 this.parent();
@@ -567,9 +503,95 @@
         module.exports = Model;
     },
     "9": function(require, module, exports, global) {
-        var Neuro = require("2"), Sync = require("7");
+        var Sync = require("7");
+        var SyncMix = new Class({
+            setSync: function(options) {
+                var _this = this, id = 0, incrementId = function() {
+                    id++;
+                }, events = {
+                    request: function() {
+                        incrementId();
+                        _this.signalSyncRequest();
+                    },
+                    complete: function(response) {
+                        _this.signalSyncComplete(response);
+                    },
+                    failure: function() {
+                        _this.signalSyncFailure();
+                    },
+                    error: function() {
+                        _this.signalSyncError();
+                    },
+                    sync: function() {
+                        _this.signalSync(response);
+                        _this.fireEvent("sync:" + this.syncId, response);
+                    }
+                }, request = new Sync(Object.merge({}, this.options.request, options || {}));
+                this.getOnceId = function() {
+                    return id + 1;
+                };
+                this.request = request.addEvents(events);
+                return this;
+            },
+            sync: function(method, data, callback) {
+                var request = this.request;
+                if (!request.check.apply(request, arguments)) return this;
+                method = request[method] ? method : "read";
+                if (callback && Type.isFunction(callback)) {
+                    this._addEventOnce(callback);
+                }
+                request[method](data);
+                return this;
+            },
+            _addEventOnce: function(fnc) {
+                var type = "sync", syncId = this.getOnceId(), cancelType = type + ":" + syncId, once, cancel;
+                cancel = function() {
+                    this.removeEvent(type, once);
+                    this.removeEvent(cancelType, cancel);
+                };
+                once = function() {
+                    fnc.apply(this, arguments);
+                    cancel.call(this);
+                };
+                this.addEvent(type, once);
+                this.addEvent(cancelType, cancel);
+                return this;
+            }.protect(),
+            parse: function(response, _this) {
+                return response;
+            },
+            cancel: function() {
+                this.request.cancel();
+                this.fireEvent("sync:" + this.getOnceId());
+                return this;
+            },
+            signalSyncRequest: function() {
+                this.fireEvent("sync:request", arguments);
+            },
+            signalSync: function() {
+                this.fireEvent("sync", arguments);
+                return this;
+            },
+            signalSyncComplete: function() {
+                this.fireEvent("sync:complete", arguments);
+                return this;
+            },
+            signalSyncError: function() {
+                this.fireEvent("sync:error", arguments);
+                return this;
+            },
+            signalSyncFailure: function() {
+                this.fireEvent("sync:failure", arguments);
+                return this;
+            }
+        });
+        exports.Sync = SyncMix;
+    },
+    a: function(require, module, exports, global) {
+        var Neuro = require("2"), Sync = require("7"), Mixins = require("9");
         var Collection = new Class({
             Extends: Neuro.Collection,
+            Implements: [ Mixins.Sync ],
             options: {
                 request: {},
                 Model: Neuro.Model
@@ -578,53 +600,19 @@
                 this.parent(models, options);
                 this.setSync();
             },
-            setSync: function(options) {
-                var _this = this, events = {
-                    request: function() {
-                        _this.fireEvent("sync:request", [ this, _this ]);
-                    },
-                    complete: function(response) {
-                        _this.fireEvent("sync:complete", [ response, _this ]);
-                    },
-                    success: function(response) {
-                        _this.fireEvent("sync", [ response, _this ]);
-                        _this.fireEvent("sync:" + this.syncId, [ response, _this ]);
-                    },
-                    failure: function() {
-                        _this.fireEvent("sync:failure", [ this, _this ]);
-                    },
-                    error: function() {
-                        _this.fireEvent("sync:error", [ this, _this ]);
-                    }
-                }, request = new Sync(Object.merge({}, this.options.request, options || {}));
-                this.request = request.addEvents(events);
-                return this;
-            },
-            parse: function(response, collection) {
-                return response;
-            },
-            sync: function(type, options, callback) {
-                var data = this.toJSON();
-                if (!options) {
-                    options = {};
-                }
-                options.data = Object.merge({}, options.data, data);
-                this.request.sync(type, options, callback);
-                return this;
-            },
-            _syncFetch: function(response, collection, callback) {
+            _syncFetch: function(response, callback, reset) {
                 if (response) {
-                    reset && collection.empty();
-                    collection.add(collection.parse.apply(collection, arguments));
+                    reset && this.empty();
+                    this.add(this.parse.apply(this, response));
                 }
-                collection.fireEvent("fetch", arguments);
-                callback && callback.call(this, response, collection);
+                this.fireEvent("fetch", response);
+                callback && callback.call(this, response);
                 return this;
             },
-            fetch: function(options, callback) {
-                var _this = this;
-                this.sync("read", options, function(response, collection) {
-                    _this._syncFetch.call(_this, response, collection, callback);
+            fetch: function(callback, reset) {
+                var _this = this, data = this.toJSON();
+                this.sync("read", data, function(response) {
+                    _this._syncFetch.call(_this, response, callback, reset);
                     _this.fireEvent("read", arguments);
                 });
                 return this;
