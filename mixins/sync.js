@@ -4,7 +4,32 @@
 
 var Sync = require('../Source/Sync');
 
+/**
+ * Create a Class that contains all the Sync specific Signals
+ * @type {Object}
+ */
+var SyncSignals = {}, 
+    signalSyncPrefix = 'signalSync',
+    syncPrefix = 'sync:',
+    syncFnc = function(str){
+        str = syncPrefix + str.toLowerCase();
+        return function(){
+            this.fireEvent(str, arguments);
+            return this;
+        };
+    };
+
+SyncSignals[signalSyncPrefix] = syncFnc('');
+
+['Request', 'Complete', 'Success', 'Failure', 'Error'].each(function(item){
+    SyncSignals[signalSyncPrefix + item] = syncFnc(item);
+});
+
+SyncSignals = new Class(SyncSignals);
+
 var SyncMix = new Class({
+    Implements: [SyncSignals],
+
     setSync: function(options){
         var _this = this,
             id = 0,
@@ -17,6 +42,9 @@ var SyncMix = new Class({
                 },
                 complete: function(response){
                     _this.signalSyncComplete(response);
+                },
+                success: function(response){
+                    _this.signalSyncSuccess(response);
                 },
                 failure: function(){
                     _this.signalSyncFailure();
@@ -46,12 +74,13 @@ var SyncMix = new Class({
 
     sync: function(method, data, callback){
         var request = this.request;
+        // This will utilize requests check to decide to cancel and continue, or chain
         if (!request.check.apply(request, arguments)) return this;
 
-        // default to read if the type do
+        // default to read if the type doesn't exist
         method = request[method] ? method : 'read';
 
-        /** Doesn't need to pass data because request would use request.options.data by default */
+        // Doesn't need to pass data because request would use request.options.data by default
         // data = data ? data : this.toJSON();
 
         if (callback && Type.isFunction(callback)) {            
@@ -94,30 +123,6 @@ var SyncMix = new Class({
     cancel: function(){
         this.request.cancel();
         this.fireEvent('sync:' + this.getOnceId());
-        return this;
-    },
-
-    signalSyncRequest: function(){
-        this.fireEvent('sync:request', arguments);
-    },
-
-    signalSync: function(){
-        this.fireEvent('sync', arguments);
-        return this;
-    },
-
-    signalSyncComplete: function(){
-        this.fireEvent('sync:complete', arguments);
-        return this;
-    },
-
-    signalSyncError: function(){
-        this.fireEvent('sync:error', arguments);
-        return this;
-    },
-
-    signalSyncFailure: function(){
-        this.fireEvent('sync:failure', arguments);
         return this;
     }
 });
