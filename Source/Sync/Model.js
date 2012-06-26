@@ -108,7 +108,7 @@ var Model = new Class({
 
         // Issue read command to server
         this.sync('read', data, function(response){
-            _this.syncFetch.call(_this, response, callback, reset);
+            _this._syncFetch.call(_this, response, callback, reset);
             _this.fireEvent('read', arguments);
         });
 
