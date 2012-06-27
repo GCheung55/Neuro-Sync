@@ -30,14 +30,22 @@ SyncSignals = new Class(SyncSignals);
 var SyncMix = new Class({
     Implements: [SyncSignals],
 
+    _syncId: 0,
+
+    _incrementSyncId: function(){
+        this._syncId++;
+        return this;
+    }.protect(),
+
+    _getSyncId: function(){
+        return this._syncId;
+    }.protect(),
+
     setSync: function(options){
         var _this = this,
-            id = 0,
-            incrementId = function(){id++;},
-            getOnceId = function(){return id + 1;},
+            getSyncId = function(){this._getSyncId}.bind(this),
             events = {
                 request: function(){
-                    incrementId();
                     _this.signalSyncRequest();
                 },
                 complete: function(response){
@@ -48,26 +56,18 @@ var SyncMix = new Class({
                 },
                 failure: function(){
                     _this.signalSyncFailure();
-                    _this.fireEvent('sync:' + getOnceId());
+                    _this.fireEvent('sync:' + getSyncId());
                 },
                 error: function(){
                     _this.signalSyncError();
-                    _this.fireEvent('sync:' + getOnceId());
+                    _this.fireEvent('sync:' + getSyncId());
                 },
                 sync: function(){
                     _this.signalSync(response);
-                    _this.fireEvent('sync:' + getOnceId());
+                    _this.fireEvent('sync:' + getSyncId());
                 }
             },
             request = new Sync(Object.merge({}, this.options.request, options || {}));
-
-        // var id = 0;
-        this.getOnceId = getOnceId;
-
-        // this.incrementOnceId = function(){
-        //     onceId++;
-        //     return this;
-        // };
 
         this.request = request.addEvents(events);
 
@@ -78,6 +78,8 @@ var SyncMix = new Class({
         var request = this.request;
         // This will utilize requests check to decide to cancel and continue, or chain
         if (!request.check.apply(request, arguments)) return this;
+
+        this._incrementSyncId();
 
         // default to read if the type doesn't exist
         method = request[method] ? method : 'read';
@@ -98,8 +100,8 @@ var SyncMix = new Class({
 
     _addEventOnce: function(fnc){
         var type = 'sync',
-            syncId = this.getOnceId(),
-            cancelType = type + ':' + (syncId),
+            syncId = this._getSyncId(),
+            cancelType = type + ':' + syncId,
             once, cancel;
 
         cancel = function(){
@@ -124,7 +126,7 @@ var SyncMix = new Class({
 
     cancel: function(){
         this.request.cancel();
-        this.fireEvent('sync:' + this.getOnceId());
+        this.fireEvent('sync:' + this._getSyncId());
         return this;
     }
 });

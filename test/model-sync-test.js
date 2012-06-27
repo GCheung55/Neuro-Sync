@@ -1,6 +1,6 @@
 buster.testCase('Neuro Sync Model', {
     setUp: function(){
-        var testModel = new Class({
+        var testModel = this.testModel = new Class({
             Extends: Neuro.Model,
             _accessors: {
                 'fullName': {
@@ -42,6 +42,10 @@ buster.testCase('Neuro Sync Model', {
         this.mockRequestOptions = {
             url: buster.env.contextPath + '/test/data/users/1/response.json'
         };
+    },
+
+    tearDown: function(){
+        this.mockModel = new this.testModel();
     },
 
     'should be marked as "new" on instantiation': function(){
@@ -138,28 +142,27 @@ buster.testCase('Neuro Sync Model', {
         model.fireEvent('sync', test1);
 
         refute.called(spy);
+    },
+
+    'cancel should remove the event added by addEventOnce during request': function(){
+        var spy = this.spy(),
+            model = this.mockModel,
+            test1 = 'first';
+
+        model.sync(undefined, model.toJSON(), function(){
+            spy.apply(this, arguments);
+        });
+
+        // Request should be running
+        assert(model.request.isRunning());
+
+        model.cancel();
+
+        // Request should no longer be running
+        refute(model.request.isRunning());
+
+        model.fireEvent('sync', test1);
+
+        refute.called(spy);
     }
 });
-
-
-    // 'cancel should remove the event added by addEventOnce during request': function(){
-    //     var spy = this.spy(),
-    //         syncObj = this.syncObj,
-    //         test1 = 'first';
-
-    //     syncObj.sync(undefined, {}, function(){
-    //         spy.apply(this, arguments);
-    //     });
-
-    //     // Request should be running
-    //     assert(syncObj.running);
-
-    //     syncObj.cancel();
-
-    //     // Request should no longer be running
-    //     refute(syncObj.running);
-
-    //     syncObj.fireEvent('sync', test1);
-
-    //     refute.called(spy);
-    // }
