@@ -45,13 +45,12 @@ var Collection = new Class({
     },
 
     fetch: function(callback, reset){
-        var _this = this,
-            data = this.toJSON();
+        var data = this.toJSON();
 
         // Issue read command to server
         this.sync('read', data, function(response){
-            _this._syncFetch.call(_this, response, callback, reset);
-            _this.fireEvent('read', arguments)
+            this._syncFetch(response, callback, reset);
+            this.fireEvent('read', arguments)
         });
 
         return this;

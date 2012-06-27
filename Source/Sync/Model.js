@@ -62,8 +62,7 @@ var Model = new Class({
 
     save: function(prop, val, callback){
         // Determine whether method is create or update;
-        var _this = this,
-            isNew = this.isNew(),
+        var isNew = this.isNew(),
             method = ['create', 'update'][+isNew],
             data;
 
@@ -76,8 +75,8 @@ var Model = new Class({
 
         // Issue create/update command to server
         this.sync(method, data, function(response){
-            _this._syncSave.call(_this, response, callback);
-            _this.fireEvent(method, arguments);
+            this._syncSave(response, callback);
+            this.fireEvent(method, arguments);
         });
 
         // Optimistically set this model as old
@@ -103,13 +102,12 @@ var Model = new Class({
     },
 
     fetch: function(callback, reset){
-        var _this = this,
-            data = this.toJSON();
+        var data = this.toJSON();
 
         // Issue read command to server
         this.sync('read', data, function(response){
-            _this._syncFetch.call(_this, response, callback, reset);
-            _this.fireEvent('read', arguments);
+            this._syncFetch(response, callback, reset);
+            this.fireEvent('read', arguments);
         });
 
         return this;
@@ -123,15 +121,13 @@ var Model = new Class({
     },
 
     destroy: function(options, callback){
-        var _this = this;
-
         // Cancel the currently executing request before continuing
         this.request.cancel();
 
         // Issue delete command to server
         this.sync('delete', options, function(response){
-            _this._syncDestroy.call(_this, response, callback);
-            _this.fireEvent('delete', arguments);
+            this._syncDestroy(response, callback);
+            this.fireEvent('delete', arguments);
         });
 
         this.parent();
