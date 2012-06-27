@@ -48,9 +48,11 @@ var SyncMix = new Class({
                 },
                 failure: function(){
                     _this.signalSyncFailure();
+                    _this.fireEvent('sync:' + getOnceId(), response);
                 },
                 error: function(){
                     _this.signalSyncError();
+                    _this.fireEvent('sync:' + getOnceId(), response);
                 },
                 sync: function(){
                     _this.signalSync(response);
