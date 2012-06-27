@@ -48,15 +48,15 @@ var SyncMix = new Class({
                 },
                 failure: function(){
                     _this.signalSyncFailure();
-                    _this.fireEvent('sync:' + getOnceId(), response);
+                    _this.fireEvent('sync:' + getOnceId());
                 },
                 error: function(){
                     _this.signalSyncError();
-                    _this.fireEvent('sync:' + getOnceId(), response);
+                    _this.fireEvent('sync:' + getOnceId());
                 },
                 sync: function(){
                     _this.signalSync(response);
-                    _this.fireEvent('sync:' + getOnceId(), response);
+                    _this.fireEvent('sync:' + getOnceId());
                 }
             },
             request = new Sync(Object.merge({}, this.options.request, options || {}));
