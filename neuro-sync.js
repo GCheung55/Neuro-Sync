@@ -524,11 +524,9 @@
             }.protect(),
             _getSyncId: function() {
                 return this._syncId;
-            }.protect(),
+            },
             setSync: function(options) {
-                var _this = this, getSyncId = function() {
-                    this._getSyncId;
-                }.bind(this), events = {
+                var _this = this, getSyncId = this._getSyncId.bind(this), events = {
                     request: function() {
                         _this.signalSyncRequest();
                     },
