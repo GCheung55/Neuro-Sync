@@ -454,14 +454,14 @@
                 return this;
             },
             save: function(prop, val, callback) {
-                var _this = this, isNew = this.isNew(), method = [ "create", "update" ][+isNew], data;
+                var isNew = this.isNew(), method = [ "create", "update" ][+isNew], data;
                 if (prop) {
                     this.set(prop, val);
                 }
                 data = this.toJSON();
                 this.sync(method, data, function(response) {
-                    _this._syncSave.call(_this, response, callback);
-                    _this.fireEvent(method, arguments);
+                    this._syncSave(response, callback);
+                    this.fireEvent(method, arguments);
                 });
                 isNew && this.setNew(false);
                 return this;
@@ -477,10 +477,10 @@
                 return this;
             },
             fetch: function(callback, reset) {
-                var _this = this, data = this.toJSON();
+                var data = this.toJSON();
                 this.sync("read", data, function(response) {
-                    _this._syncFetch.call(_this, response, callback, reset);
-                    _this.fireEvent("read", arguments);
+                    this._syncFetch(response, callback, reset);
+                    this.fireEvent("read", arguments);
                 });
                 return this;
             },
@@ -490,11 +490,10 @@
                 return this;
             },
             destroy: function(options, callback) {
-                var _this = this;
                 this.request.cancel();
                 this.sync("delete", options, function(response) {
-                    _this._syncDestroy.call(_this, response, callback);
-                    _this.fireEvent("delete", arguments);
+                    this._syncDestroy(response, callback);
+                    this.fireEvent("delete", arguments);
                 });
                 this.parent();
                 return this;
@@ -518,14 +517,19 @@
         SyncSignals = new Class(SyncSignals);
         var SyncMix = new Class({
             Implements: [ SyncSignals ],
+            _syncId: 0,
+            _incrementSyncId: function() {
+                this._syncId++;
+                return this;
+            }.protect(),
+            _getSyncId: function() {
+                return this._syncId;
+            }.protect(),
             setSync: function(options) {
-                var _this = this, id = 0, incrementId = function() {
-                    id++;
-                }, getOnceId = function() {
-                    return id + 1;
-                }, events = {
+                var _this = this, getSyncId = function() {
+                    this._getSyncId;
+                }.bind(this), events = {
                     request: function() {
-                        incrementId();
                         _this.signalSyncRequest();
                     },
                     complete: function(response) {
@@ -536,24 +540,24 @@
                     },
                     failure: function() {
                         _this.signalSyncFailure();
-                        _this.fireEvent("sync:" + getOnceId());
+                        _this.fireEvent("sync:" + getSyncId());
                     },
                     error: function() {
                         _this.signalSyncError();
-                        _this.fireEvent("sync:" + getOnceId());
+                        _this.fireEvent("sync:" + getSyncId());
                     },
                     sync: function() {
                         _this.signalSync(response);
-                        _this.fireEvent("sync:" + getOnceId());
+                        _this.fireEvent("sync:" + getSyncId());
                     }
                 }, request = new Sync(Object.merge({}, this.options.request, options || {}));
-                this.getOnceId = getOnceId;
                 this.request = request.addEvents(events);
                 return this;
             },
             sync: function(method, data, callback) {
                 var request = this.request;
                 if (!request.check.apply(request, arguments)) return this;
+                this._incrementSyncId();
                 method = request[method] ? method : "read";
                 if (callback && Type.isFunction(callback)) {
                     this._addEventOnce(callback);
@@ -562,7 +566,7 @@
                 return this;
             },
             _addEventOnce: function(fnc) {
-                var type = "sync", syncId = this.getOnceId(), cancelType = type + ":" + syncId, once, cancel;
+                var type = "sync", syncId = this._getSyncId(), cancelType = type + ":" + syncId, once, cancel;
                 cancel = function() {
                     this.removeEvent(type, once);
                     this.removeEvent(cancelType, cancel);
@@ -580,7 +584,7 @@
             },
             cancel: function() {
                 this.request.cancel();
-                this.fireEvent("sync:" + this.getOnceId());
+                this.fireEvent("sync:" + this._getSyncId());
                 return this;
             }
         });
@@ -609,10 +613,10 @@
                 return this;
             },
             fetch: function(callback, reset) {
-                var _this = this, data = this.toJSON();
+                var data = this.toJSON();
                 this.sync("read", data, function(response) {
-                    _this._syncFetch.call(_this, response, callback, reset);
-                    _this.fireEvent("read", arguments);
+                    this._syncFetch(response, callback, reset);
+                    this.fireEvent("read", arguments);
                 });
                 return this;
             }
