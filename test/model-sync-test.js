@@ -161,6 +161,9 @@ buster.testCase('Neuro Sync Model', {
         // Request should no longer be running
         refute(model.request.isRunning());
 
+        // The event that's added should be undefined
+        refute(model.$events.sync[0]);
+
         model.fireEvent('sync', test1);
 
         refute.called(spy);
