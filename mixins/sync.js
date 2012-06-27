@@ -39,11 +39,11 @@ var SyncMix = new Class({
 
     _getSyncId: function(){
         return this._syncId;
-    }.protect(),
+    },
 
     setSync: function(options){
         var _this = this,
-            getSyncId = function(){this._getSyncId}.bind(this),
+            getSyncId = this._getSyncId.bind(this),
             events = {
                 request: function(){
                     _this.signalSyncRequest();
