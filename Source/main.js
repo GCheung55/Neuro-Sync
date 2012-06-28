@@ -1,5 +1,6 @@
-var Neuro = require('./Neuro');
+var Neuro = require('Neuro');
 
+Neuro.Sync = require('./Sync');
 Neuro.Model = require('./Model');
 Neuro.Collection = require('./Collection');
 

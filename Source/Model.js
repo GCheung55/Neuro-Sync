@@ -1,292 +1,139 @@
-// (function(context){
+/**
+ * Sync Model
+ * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
+ * 
+ * @type {Class}
+ * 
+ * @todo Need to setup the url to be like /path/:id. This would allow plugin in data to the url
+ * Then set it to the request options url property
+ *
+ * 
+ */
 
-var Is = require('../lib/util/Is').Is,
-    Silence = require('../mixins/silence');
-
-var createGetter = function(type){
-    /**
-     * isPrevious is a parameter to be passed into custom getter accessors.
-     * This will allow the getter to know whether it should be retrieving from _data or _previousData.
-     * @type {Boolean}
-     */
-    var isPrevious = type == '_previousData' || void 0;
-
-    return function(prop){
-        var val = this[type][prop],
-            accessor = this.getAccessor[prop],
-            getter = accessor && accessor.get;
-
-        return getter ? getter.call(this, isPrevious) : val;
-    }.overloadGetter();
-};
+var Neuro = require('Neuro'),
+    Sync = require('./Sync'),
+    Mixins = require('../mixins/sync');
 
 var Model = new Class({
-    Implements: [Events, Options, Silence],
+    Extends: Neuro.Model,
 
-    _data: {},
+    Implements: [Mixins.Sync],
 
-    _changed: false,
-
-    _changedProperties: {},
-
-    _previousData: {},
-
-    _accessors: {
-        /*
-        key: {
-            // Must return a value that is NOT null in order to mark this model changed by this property change
-            set: function(prop, val){return val;},
-
-            // isPrevious flag lets you choose whether to pull data from this._data or this._previousData
-            get: function(isPrevious){
-                //Example
-                var data = isPrevious ? this._data : this._previousData;
-                return data['somekey'];
-            },
-        }
-        */
-    },
+    _new: true,
 
     options: {
-        // onChange: function(){},
-        // 'onChange:key': function(){},
-        // onDestroy: function(){},
-        accessors: {},
-        defaults: {},
-        silent: false
+        request: {},
+        isNew: true
     },
 
-    initialize: function(data, options){
-        if (instanceOf(data, this.constructor)) {
-            return data;
-        }
+    isNew: function(){
+        return this._new;
+    },
 
-        this.setup(data, options);
+    setNew: function(bool){
+        this._new = !!bool;
+
+        return this;
     },
 
     setup: function(data, options){
-        this.setOptions(options);
+        this.parent(data, options);
 
-        // Set the _data defaults
-        this._data = this.options.defaults;
+        // Defining whether model is new is optional
+        this.setNew(this.options.isNew);
 
-        this.setAccessor(this.options.accessors);
-
-        // Silent property determines whether model will excute signals
-        this.silence(this.options.silent);
-
-        // Just set the data instead of Object merging. This will skip cloning Class instances.
-        if (data) { this.set(data); }
+        this.setSync(this.options.request);
 
         return this;
     },
 
-    /**
-     * Store the key/value pair in the Model instance
-     * Signal to property referenced change listener if property value is changed
-     *
-     * @param  {String} prop Property name to be stored
-     * @param  {Array|Function|Number|Object|String} val Property value to be stored
-     * @return {Class} The Model instance
-     */
-    _set: function(prop, val){
-        // Store the older pr
-        var old = this._data[prop],
-            accessor = this.getAccessor(prop),
-            setter = accessor && accessor.set,
-            setterVal;
-
-        switch(typeOf(val)){
-            // Dereference the new val if it's an Array
-            case 'array': val = val.slice(); break;
-            // Or an Object but not an instance of Class
-            case 'object':
-                if (!val.$constructor || (val.$constructor && !instanceOf(val.$constructor, Class))){
-                    val = Object.clone(val);
-                }
-                break;
+    _syncSave: function(response, callback){
+        // If data returns, set it
+        if (response) {
+            this.set(this.parse.apply(this, response));
         }
 
-        if (!Is.Equal(old, val)) {
-            /**
-             * Use the custom setter accessor if it exists.
-             * Otherwise, set the property in the regular fashion.
-             * Setter must return a value that is NOT null in order to mark the model as changed
-             */
-            if (setter) {
-                setterVal = setter.apply(this, arguments);
-                if (setterVal !== null) {
-                    this._changed = true;
+        this.fireEvent('save', response);
 
-                    this._data[prop] = this._changedProperties[prop] = setterVal;
-                }
-            } else {
-                this._changed = true;
+        callback && callback.call(this, response);
 
-                this._data[prop] = this._changedProperties[prop] = val;
-            }
+        return this;
+    },
+
+    save: function(prop, val, callback){
+        // Determine whether method is create or update;
+        var isNew = this.isNew(),
+            method = ['create', 'update'][+isNew],
+            data;
+
+        // Set data if property exists
+        if (prop) {
+            this.set(prop, val);
         }
 
-        return this;
-    }.overloadSetter(),
+        data = this.toJSON();
 
-    /**
-     * Store the key/value pair in the Model instance
-     *
-     * @param  {String} prop Property name to be stored
-     * @param  {Array|Function|Number|Object|String} val Property value to be stored
-     *         Function property will be invoked with 'call', bound to the Model instance
-     * @return {Class} The Model instance
-     */
-    set: function(prop, val){
-        // store the previously changed properties
-        this._setPreviousData();
+        // Issue create/update command to server
+        this.sync(method, data, function(response){
+            this._syncSave(response, callback);
+            this.fireEvent(method, arguments);
+        });
 
-        this._set(prop, val);
-        
-        this.changeProperty(this._changedProperties);
-
-        this.change();
-        
-        // reset changed and changed properties
-        this._resetChanged();
+        // Optimistically set this model as old
+        isNew && this.setNew(false);
 
         return this;
     },
 
-    /**
-     * Unset a data property. It can not be erased so it will be set to undefined
-     *
-     * @param  {[type]} prop Property name to be unset
-     * @return {Class} The Model instance
-     */
-    unset: function(prop){
-        // void 0 is used because 'undefined' is a var that can be changed in some browsers
-        this.set(prop, void 0);
-
-        return this;
-    },
-
-    /**
-     * Retrieve the stored property
-     *
-     * @param  {String} prop Property name to retrieve
-     * @return Value referenced by prop param
-     */
-    get: createGetter('_data'),
-
-    /**
-     * Retrieve entire data object in Model instance
-     *
-     * @return {Object}
-     */
-    getData: function(){
-        return Object.clone(this._data);
-    },
-    
-    _setPreviousData: function(){
-        this._previousData = Object.clone(this._data);
-        
-        return this;
-    },
-    
-    getPrevious: createGetter('_previousData'),
-    
-    getPreviousData: function(){
-        return Object.clone(this._previousData);
-    },
-    
-    _resetChanged: function(){
-        if (this._changed) {
-            // reset the changed
-            this._changed = false;
-    
-            // reset changed properties
-            this._changedProperties = {};
-        }
-        
-        return this;
-    },
-
-    /**
-     * Signal to 'change' listener if model has changed
-     *
-     * @return {[type]}
-     */
-    change: function(){
-        if (this._changed) {
-            this.signalChange();
+    _syncFetch: function(response, callback, reset){
+        // If data returns, set it
+        if (response) {
+            // Reset to what the default is before setting the response
+            reset && (this._data = Object.merge({}, this.options.defaults));
+            this.set(this.parse.apply(this, arguments));
         }
 
-        return this;
-    },
+        this.setNew(false);
+        this.fireEvent('fetch', response);
 
-    /**
-     * Signal to 'change:prop' listener if model property has changed
-     * @param  {String} prop Name of property
-     * @return {[type]}
-     */
-    changeProperty: function(prop, val){
-        if (this._changed) {
-            this.signalChangeProperty(prop, val);
-        }
-
-        return this;
-    }.overloadSetter(),
-
-    /**
-     * Signal to 'destroy' listener if model is to be destroyed
-     *
-     * @return {[type]}
-     */
-    destroy: function(){
-        this.signalDestroy();
+        callback && callback.call(this, response);
 
         return this;
     },
-    
-    signalChange: function(){
-        !this.isSilent() && this.fireEvent('change');
-        return this;
-    },
-    
-    signalChangeProperty: function(prop, val){
-        !this.isSilent() && this.fireEvent('change:' + prop, [prop, val]);
-        return this;
-    },
-    
-    signalDestroy: function(){
-        !this.isSilent() && this.fireEvent('destroy');
+
+    fetch: function(callback, reset){
+        var data = this.toJSON();
+
+        // Issue read command to server
+        this.sync('read', data, function(response){
+            this._syncFetch(response, callback, reset);
+            this.fireEvent('read', arguments);
+        });
+
         return this;
     },
 
-    toJSON: function(){
-        return this.getData();
+    _syncDestroy: function(response, callback){
+        this.fireEvent('delete', arguments);
+
+        callback && callback.call(this, response);
+        return this;
     },
 
-    setAccessor: function(key, val){
-        this._accessors[key] = val;
+    destroy: function(options, callback){
+        // Cancel the currently executing request before continuing
+        this.request.cancel();
 
-        return this;
-    }.overloadSetter(),
+        // Issue delete command to server
+        this.sync('delete', options, function(response){
+            this._syncDestroy(response, callback);
+            this.fireEvent('delete', arguments);
+        });
 
-    getAccessor: function(key){
-        return this._accessors[key];
-    }.overloadGetter(),
-
-    unsetAccessor: function(key){
-        delete this._accessors[key];
-        this._accessors[key] = undefined;
+        this.parent();
 
         return this;
     }
 });
 
-['subset', 'map', 'filter', 'every', 'some', 'keys', 'values', 'getLength', 'keyOf', 'contains', 'toQueryString'].each(function(method){
-    Model.implement(method, function(){
-        return Object[method].apply( Object, [this._data].append( Array.from(arguments) ) );
-    });
-});
-
 module.exports = Model;
-// }(typeof exports != 'undefined' ? exports : window));

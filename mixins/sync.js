@@ -3,7 +3,7 @@
  */
 
 var Sync = require('../Source/Sync'),
-    Is = require('../lib/util/Is').Is;
+    Is = require('Neuro/lib/util/Is').Is;
 
 /**
  * Create a Class that contains all the Sync specific Signals

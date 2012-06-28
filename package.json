@@ -1,7 +1,7 @@
 {
-    "name": "Neuro",
-    "description": "A MVC written with MooTools.",
-    "version": "0.1.2",
+    "name": "neuro-sync",
+    "description": "An extension of Neuro to provide a \"sync\" component.",
+    "version": "0.0.1",
     "license": "MIT (http://mootools.net/license.txt)",
     "main": "Source/main.js",
     "keywords": [
@@ -10,9 +10,14 @@
         "mvc"
     ],
     "author": "Garrick Cheung <garrick@garrickcheung.com>",
-    "bugs": "https://github.com/gcheung55/neuro/issues",
+    "dependencies": {
+        "Neuro": "*"
+    },
+    "engines": {
+        "node": "*"
+    },
     "repository": {
         "type": "git",
-        "url": "https://github.com/gcheung55/neuro.git"
+        "url": "https://github.com/gcheung55/neuro-sync.git"
     }
 }
