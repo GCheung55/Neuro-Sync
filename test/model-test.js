@@ -12,7 +12,7 @@ buster.testCase('Neuro Model', {
 
                             this.set('firstName', first);
                             this.set('lastName', last);
-                            this._data[prop] = first + ' ' + last;
+                            return val;
                         }
                     },
                     get: function(isPrevious){

@@ -34,8 +34,15 @@ var Model = new Class({
     _accessors: {
         /*
         key: {
-            set: function(){},
-            get: function(isPrevious){},
+            // Must return a value that is NOT null in order to mark this model changed by this property change
+            set: function(prop, val){return val;},
+
+            // isPrevious flag lets you choose whether to pull data from this._data or this._previousData
+            get: function(isPrevious){
+                //Example
+                var data = isPrevious ? this._data : this._previousData;
+                return data['somekey'];
+            },
         }
         */
     },
@@ -82,7 +89,8 @@ var Model = new Class({
         // Store the older pr
         var old = this._data[prop],
             accessor = this.getAccessor(prop),
-            setter = accessor && accessor.set;
+            setter = accessor && accessor.set,
+            setterVal;
 
         // Dereference the new val
         if (Is.Array(val)) {
@@ -92,18 +100,22 @@ var Model = new Class({
         }
 
         if (!Is.Equal(old, val)) {
-            this._changed = true;
-
-            this._changedProperties[prop] = val;
-
             /**
              * Use the custom setter accessor if it exists.
              * Otherwise, set the property in the regular fashion.
+             * Setter must return a value that is NOT null in order to mark the model as changed
              */
             if (setter) {
-                setter.apply(this, arguments);
+                setterVal = setter.apply(this, arguments);
+                if (setterVal !== null) {
+                    this._changed = true;
+
+                    this._data[prop] = this._changedProperties[prop] = setterVal;
+                }
             } else {
-                this._data[prop] = val;
+                this._changed = true;
+
+                this._data[prop] = this._changedProperties[prop] = val;
             }
         }
 
