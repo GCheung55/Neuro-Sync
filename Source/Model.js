@@ -67,12 +67,16 @@ var Model = new Class({
     setup: function(data, options){
         this.setOptions(options);
 
+        // Set the _data defaults
+        this._data = this.options.defaults;
+
         this.setAccessor(this.options.accessors);
 
         // Silent property determines whether model will excute signals
         this.silence(this.options.silent);
 
-        if (data) { this._data = Object.merge({}, this.options.defaults, data); }
+        // Just set the data instead of Object merging. This will skip cloning Class instances.
+        if (data) { this.set(data); }
 
         return this;
     },
@@ -92,11 +96,15 @@ var Model = new Class({
             setter = accessor && accessor.set,
             setterVal;
 
-        // Dereference the new val
-        if (Is.Array(val)) {
-            val = val.slice();
-        } else if(Is.Object(val)){
-            val = Object.clone(val);
+        switch(typeOf(val)){
+            // Dereference the new val if it's an Array
+            case 'array': val = val.slice(); break;
+            // Or an Object but not an instance of Class
+            case 'object':
+                if (!val.$constructor || (val.$constructor && !instanceOf(val.$constructor, Class))){
+                    val = Object.clone(val);
+                }
+                break;
         }
 
         if (!Is.Equal(old, val)) {
