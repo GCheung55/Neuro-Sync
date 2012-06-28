@@ -59,19 +59,22 @@
                 return this;
             },
             _set: function(prop, val) {
-                var old = this._data[prop], accessor = this.getAccessor(prop), setter = accessor && accessor.set;
+                var old = this._data[prop], accessor = this.getAccessor(prop), setter = accessor && accessor.set, setVal = null;
                 if (Is.Array(val)) {
                     val = val.slice();
                 } else if (Is.Object(val)) {
                     val = Object.clone(val);
                 }
                 if (!Is.Equal(old, val)) {
-                    this._changed = true;
-                    this._changedProperties[prop] = val;
                     if (setter) {
-                        setter.apply(this, arguments);
+                        setVal = setter.apply(this, arguments);
+                        if (setVal !== null) {
+                            this._changed = true;
+                            this._data[prop] = this._changedProperties[prop] = setVal;
+                        }
                     } else {
-                        this._data[prop] = val;
+                        this._changed = true;
+                        this._data[prop] = this._changedProperties[prop] = val;
                     }
                 }
                 return this;
