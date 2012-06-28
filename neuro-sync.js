@@ -66,7 +66,7 @@
                 return this;
             },
             _set: function(prop, val) {
-                var old = this._data[prop], accessor = this.getAccessor(prop), setter = accessor && accessor.set, setVal = null;
+                var old = this._data[prop], accessor = this.getAccessor(prop), setter = accessor && accessor.set, setterVal;
                 if (Is.Array(val)) {
                     val = val.slice();
                 } else if (Is.Object(val)) {
@@ -74,10 +74,10 @@
                 }
                 if (!Is.Equal(old, val)) {
                     if (setter) {
-                        setVal = setter.apply(this, arguments);
-                        if (setVal !== null) {
+                        setterVal = setter.apply(this, arguments);
+                        if (setterVal !== null) {
                             this._changed = true;
-                            this._data[prop] = this._changedProperties[prop] = setVal;
+                            this._data[prop] = this._changedProperties[prop] = setterVal;
                         }
                     } else {
                         this._changed = true;
