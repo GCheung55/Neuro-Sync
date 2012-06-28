@@ -25,7 +25,7 @@
     },
     "2": function(require, module, exports, global) {
         var Neuro = {
-            version: "0.1.x"
+            version: "0.1.4"
         };
         exports = module.exports = Neuro;
     },
@@ -303,8 +303,9 @@
             Implements: [ Events, Options, Silence ],
             _models: [],
             _bound: {},
+            _Model: Model,
             options: {
-                Model: Model,
+                Model: undefined,
                 modelOptions: undefined,
                 silent: false
             },
@@ -316,7 +317,9 @@
                 this._bound = {
                     remove: this.remove.bind(this)
                 };
-                this._Model = this.options.Model;
+                if (this.options.Model) {
+                    this._Model = this.options.Model;
+                }
                 this.silence(this.options.silent);
                 if (models) {
                     this.add(models);
@@ -432,7 +435,7 @@
         module.exports = Sync;
     },
     "8": function(require, module, exports, global) {
-        var Neuro = require("2"), Sync = require("7"), Mixins = require("9");
+        var Neuro = require("1"), Sync = require("7"), Mixins = require("9");
         var Model = new Class({
             Extends: Neuro.Model,
             Implements: [ Mixins.Sync ],
@@ -598,7 +601,7 @@
         exports.Sync = SyncMix;
     },
     a: function(require, module, exports, global) {
-        var Neuro = require("2"), Sync = require("7"), Mixins = require("9");
+        var Neuro = require("1"), Sync = require("7"), Mixins = require("9");
         var Collection = new Class({
             Extends: Neuro.Collection,
             Implements: [ Mixins.Sync ],
