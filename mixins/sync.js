@@ -2,7 +2,8 @@
  * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
  */
 
-var Sync = require('../Source/Sync');
+var Sync = require('../Source/Sync'),
+    Is = require('../lib/util/Is').Is;
 
 /**
  * Create a Class that contains all the Sync specific Signals
@@ -87,7 +88,7 @@ var SyncMix = new Class({
         // Doesn't need to pass data because request would use request.options.data by default
         // data = data ? data : this.toJSON();
 
-        if (callback && Type.isFunction(callback)) {            
+        if (callback && Is.Function(callback)) {            
             // this.incrementOnceId();
 
             this._addEventOnce(callback);
