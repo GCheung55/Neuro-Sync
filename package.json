@@ -3,7 +3,7 @@
     "description": "An extension of Neuro to provide a \"sync\" component.",
     "version": "0.0.1",
     "license": "MIT (http://mootools.net/license.txt)",
-    "main": "Source/main.js",
+    "main": "src/main.js",
     "keywords": [
         "neuro",
         "mootools",

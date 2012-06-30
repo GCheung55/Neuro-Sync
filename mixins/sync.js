@@ -2,7 +2,7 @@
  * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
  */
 
-var Sync = require('../Source/Sync'),
+var Sync = require('../src/Sync'),
     Is = require('Neuro/lib/util/Is').Is;
 
 /**
