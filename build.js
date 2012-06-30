@@ -3,7 +3,7 @@ var fs = require('fs')
 
 // Write the neuro.js file
 
-var src = wrup.require('Neuro', './Source/main.js').up();
+var src = wrup.require('Neuro', './').up();
 
 fs.writeFile('./neuro-sync.js', src);
 console.log('Neuro Sync created.');
