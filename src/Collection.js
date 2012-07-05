@@ -30,7 +30,7 @@ var Collection = new Class({
         this.setSync();
     },
 
-    _syncFetch: function(response, callback, empty){
+    _syncFetch: function(response, empty, callback){
         response = this.process(response);
 
         // If data returns, set it
@@ -46,12 +46,12 @@ var Collection = new Class({
         return this;
     },
 
-    fetch: function(callback, empty){
+    fetch: function(empty, callback){
         var data = this.toJSON();
 
         // Issue read command to server
         this.sync('read', data, function(response){
-            this._syncFetch(response, callback, empty);
+            this._syncFetch(response, empty, callback);
         });
 
         return this;
