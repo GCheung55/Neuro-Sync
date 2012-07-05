@@ -668,7 +668,7 @@
                 this.parent(models, options);
                 this.setSync();
             },
-            _syncFetch: function(response, callback, empty) {
+            _syncFetch: function(response, empty, callback) {
                 response = this.process(response);
                 if (response) {
                     empty && this.empty();
@@ -678,10 +678,10 @@
                 callback && callback.call(this, response);
                 return this;
             },
-            fetch: function(callback, empty) {
+            fetch: function(empty, callback) {
                 var data = this.toJSON();
                 this.sync("read", data, function(response) {
-                    this._syncFetch(response, callback, empty);
+                    this._syncFetch(response, empty, callback);
                 });
                 return this;
             }
