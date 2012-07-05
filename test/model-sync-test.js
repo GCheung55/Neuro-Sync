@@ -126,7 +126,7 @@ buster.testCase('Neuro Sync Model', {
             this.server.restore();
 
             var keys = this.mockSyncModel.keys();
-            this.mockSyncModel.unset(keys);
+            this.mockSyncModel.reset();
         },
 
         'should have a request object created that is an instance of Sync': function(){
