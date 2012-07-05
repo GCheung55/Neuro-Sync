@@ -25,7 +25,7 @@
     },
     "2": function(require, module, exports, global) {
         var Neuro = {
-            version: "0.1.6"
+            version: "0.1.7"
         };
         exports = module.exports = Neuro;
     },
@@ -40,12 +40,14 @@
         };
         var Model = new Class({
             Implements: [ Events, Options, Silence ],
+            primaryKey: undefined,
             _data: {},
             _changed: false,
             _changedProperties: {},
             _previousData: {},
             _accessors: {},
             options: {
+                primaryKey: undefined,
                 accessors: {},
                 defaults: {},
                 silent: false
@@ -58,7 +60,9 @@
             },
             setup: function(data, options) {
                 this.setOptions(options);
-                this._data = this.options.defaults;
+                this.primaryKey = this.options.primaryKey;
+                this.__set(this.options.defaults);
+                this._resetChanged();
                 this.setAccessor(this.options.accessors);
                 this.silence(this.options.silent);
                 if (data) {
@@ -66,6 +70,15 @@
                 }
                 return this;
             },
+            __set: function(prop, val) {
+                var accessor = this.getAccessor(prop), setter = accessor && accessor.set, setterVal;
+                if (setter) {
+                    setterVal = setter.apply(this, arguments);
+                }
+                this._changed = true;
+                this._data[prop] = this._changedProperties[prop] = setter && setterVal !== null ? setterVal : val;
+                return this;
+            }.overloadSetter(),
             _set: function(prop, val) {
                 var old = this._data[prop], accessor = this.getAccessor(prop), setter = accessor && accessor.set, setterVal;
                 switch (typeOf(val)) {
@@ -79,29 +92,44 @@
                     break;
                 }
                 if (!Is.Equal(old, val)) {
-                    if (setter) {
-                        setterVal = setter.apply(this, arguments);
-                        if (setterVal !== null) {
-                            this._changed = true;
-                            this._data[prop] = this._changedProperties[prop] = setterVal;
-                        }
-                    } else {
-                        this._changed = true;
-                        this._data[prop] = this._changedProperties[prop] = val;
-                    }
+                    this.__set(prop, val);
                 }
                 return this;
             }.overloadSetter(),
             set: function(prop, val) {
-                this._setPreviousData();
-                this._set(prop, val);
-                this.changeProperty(this._changedProperties);
-                this.change();
-                this._resetChanged();
+                if (prop) {
+                    this._setPreviousData();
+                    this._set(prop, val);
+                    this.changeProperty(this._changedProperties);
+                    this.change();
+                    this._resetChanged();
+                }
                 return this;
             },
             unset: function(prop) {
-                this.set(prop, void 0);
+                var props = {}, len, i = 0, item;
+                prop = Array.from(prop);
+                len = prop.length;
+                while (len--) {
+                    props[prop[i++]] = void 0;
+                }
+                this.set(props);
+                return this;
+            },
+            reset: function(prop) {
+                var props = {}, len, i = 0, item;
+                if (prop) {
+                    prop = Array.from(prop);
+                    len = prop.length;
+                    while (len--) {
+                        item = prop[i++];
+                        props[item] = this.options.defaults[item];
+                    }
+                } else {
+                    props = this.options.defaults;
+                }
+                this.set(props);
+                this.signalReset();
                 return this;
             },
             get: createGetter("_data"),
@@ -149,6 +177,10 @@
             },
             signalDestroy: function() {
                 !this.isSilent() && this.fireEvent("destroy");
+                return this;
+            },
+            signalReset: function() {
+                !this.isSilent() && this.fireEvent("reset");
                 return this;
             },
             toJSON: function() {
@@ -304,7 +336,9 @@
             _models: [],
             _bound: {},
             _Model: Model,
+            primaryKey: undefined,
             options: {
+                primaryKey: undefined,
                 Model: undefined,
                 modelOptions: undefined,
                 silent: false
@@ -317,6 +351,7 @@
                 this._bound = {
                     remove: this.remove.bind(this)
                 };
+                this.primaryKey = this.options.primaryKey;
                 if (this.options.Model) {
                     this._Model = this.options.Model;
                 }
@@ -327,7 +362,15 @@
                 return this;
             },
             hasModel: function(model) {
-                return this._models.contains(model);
+                var pk = this.primaryKey, has, modelId;
+                has = this._models.contains(model);
+                if (pk && !has) {
+                    modelId = instanceOf(model, Model) ? model.get(pk) : model[pk];
+                    has = this.some(function(item) {
+                        return modelId === item.get(pk);
+                    });
+                }
+                return !!has;
             },
             _add: function(model) {
                 model = new this._Model(model, this.options.modelOptions);
@@ -458,8 +501,9 @@
                 return this;
             },
             _syncSave: function(response, callback) {
+                response = this.process(response);
                 if (response) {
-                    this.set(this.parse.apply(this, response));
+                    this.set(response);
                 }
                 this.fireEvent("save", response);
                 callback && callback.call(this, response);
@@ -473,39 +517,35 @@
                 data = this.toJSON();
                 this.sync(method, data, function(response) {
                     this._syncSave(response, callback);
-                    this.fireEvent(method, arguments);
                 });
                 isNew && this.setNew(false);
                 return this;
             },
-            _syncFetch: function(response, callback, reset) {
+            _syncFetch: function(response, callback) {
+                response = this.process(response);
                 if (response) {
-                    reset && (this._data = Object.merge({}, this.options.defaults));
-                    this.set(this.parse.apply(this, arguments));
+                    this.set(response);
                 }
                 this.setNew(false);
                 this.fireEvent("fetch", response);
                 callback && callback.call(this, response);
                 return this;
             },
-            fetch: function(callback, reset) {
+            fetch: function(callback) {
                 var data = this.toJSON();
                 this.sync("read", data, function(response) {
-                    this._syncFetch(response, callback, reset);
-                    this.fireEvent("read", arguments);
+                    this._syncFetch(response, callback);
                 });
                 return this;
             },
             _syncDestroy: function(response, callback) {
-                this.fireEvent("delete", arguments);
                 callback && callback.call(this, response);
                 return this;
             },
-            destroy: function(options, callback) {
+            destroy: function(callback) {
                 this.request.cancel();
-                this.sync("delete", options, function(response) {
+                this.sync("delete", {}, function(response) {
                     this._syncDestroy(response, callback);
-                    this.fireEvent("delete", arguments);
                 });
                 this.parent();
                 return this;
@@ -516,15 +556,14 @@
     "9": function(require, module, exports, global) {
         var Sync = require("7"), Is = require("4").Is;
         var SyncSignals = {}, signalSyncPrefix = "signalSync", syncPrefix = "sync:", syncFnc = function(str) {
-            str = syncPrefix + str.toLowerCase();
             return function() {
                 this.fireEvent(str, arguments);
                 return this;
             };
         };
-        SyncSignals[signalSyncPrefix] = syncFnc("");
+        SyncSignals[signalSyncPrefix] = syncFnc("sync");
         [ "Request", "Complete", "Success", "Failure", "Error" ].each(function(item) {
-            SyncSignals[signalSyncPrefix + item] = syncFnc(item);
+            SyncSignals[signalSyncPrefix + item] = syncFnc(syncPrefix + item.toLowerCase());
         });
         SyncSignals = new Class(SyncSignals);
         var SyncMix = new Class({
@@ -556,7 +595,7 @@
                         _this.signalSyncError();
                         _this.fireEvent("sync:" + getSyncId());
                     },
-                    sync: function() {
+                    sync: function(response) {
                         _this.signalSync(response);
                         _this.fireEvent("sync:" + getSyncId());
                     }
@@ -564,13 +603,29 @@
                 this.request = request.addEvents(events);
                 return this;
             },
+            syncCheck: function() {
+                var request = this.request;
+                if (!request.running) return true;
+                switch (request.options.link) {
+                  case "cancel":
+                    this.cancel();
+                    return true;
+                  case "chain":
+                    request.chain(this.caller.pass(arguments, this));
+                    return false;
+                }
+                return false;
+            },
             sync: function(method, data, callback) {
                 var request = this.request;
-                if (!request.check.apply(request, arguments)) return this;
+                if (!this.syncCheck(method, data, callback)) return this;
                 this._incrementSyncId();
                 method = request[method] ? method : "read";
                 if (callback && Is.Function(callback)) {
-                    this._addEventOnce(callback);
+                    this._addEventOnce(function() {
+                        callback.apply(this, arguments);
+                        this.fireEvent(method, arguments);
+                    });
                 }
                 request[method](data);
                 return this;
@@ -589,7 +644,7 @@
                 this.addEvent(cancelType, cancel);
                 return this;
             }.protect(),
-            parse: function(response, _this) {
+            process: function(response) {
                 return response;
             },
             cancel: function() {
@@ -613,20 +668,20 @@
                 this.parent(models, options);
                 this.setSync();
             },
-            _syncFetch: function(response, callback, reset) {
+            _syncFetch: function(response, callback, empty) {
+                response = this.process(response);
                 if (response) {
-                    reset && this.empty();
-                    this.add(this.parse.apply(this, response));
+                    empty && this.empty();
+                    this.add(response);
                 }
                 this.fireEvent("fetch", response);
                 callback && callback.call(this, response);
                 return this;
             },
-            fetch: function(callback, reset) {
+            fetch: function(callback, empty) {
                 var data = this.toJSON();
                 this.sync("read", data, function(response) {
-                    this._syncFetch(response, callback, reset);
-                    this.fireEvent("read", arguments);
+                    this._syncFetch(response, callback, empty);
                 });
                 return this;
             }
