@@ -7,7 +7,7 @@
  * @todo Need to setup the url to be like /path/:id. This would allow plugin in data to the url
  * Then set it to the request options url property
  *
- * 
+ * @requires [MooTools-Core/Class]
  */
 
 var Neuro = require('Neuro'),
@@ -30,11 +30,13 @@ var Collection = new Class({
         this.setSync();
     },
 
-    _syncFetch: function(response, callback, reset){
+    _syncFetch: function(response, callback, empty){
+        response = this.process(response);
+
         // If data returns, set it
         if (response) {
-            reset && this.empty();
-            this.add(this.parse.apply(this, response));
+            empty && this.empty();
+            this.add(response);
         }
 
         this.fireEvent('fetch', response);
@@ -44,13 +46,12 @@ var Collection = new Class({
         return this;
     },
 
-    fetch: function(callback, reset){
+    fetch: function(callback, empty){
         var data = this.toJSON();
 
         // Issue read command to server
         this.sync('read', data, function(response){
-            this._syncFetch(response, callback, reset);
-            this.fireEvent('read', arguments)
+            this._syncFetch(response, callback, empty);
         });
 
         return this;
