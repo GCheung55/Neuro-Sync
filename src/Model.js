@@ -7,7 +7,7 @@
  * @todo Need to setup the url to be like /path/:id. This would allow plugin in data to the url
  * Then set it to the request options url property
  *
- * 
+ * @requires [MooTools-Core/Class]
  */
 
 var Neuro = require('Neuro'),
@@ -48,9 +48,11 @@ var Model = new Class({
     },
 
     _syncSave: function(response, callback){
+        response = this.process(response);
+
         // If data returns, set it
         if (response) {
-            this.set(this.parse.apply(this, response));
+            this.set(response);
         }
 
         this.fireEvent('save', response);
@@ -76,7 +78,6 @@ var Model = new Class({
         // Issue create/update command to server
         this.sync(method, data, function(response){
             this._syncSave(response, callback);
-            this.fireEvent(method, arguments);
         });
 
         // Optimistically set this model as old
@@ -85,12 +86,11 @@ var Model = new Class({
         return this;
     },
 
-    _syncFetch: function(response, callback, reset){
+    _syncFetch: function(response, callback){
+        response = this.process(response);
         // If data returns, set it
         if (response) {
-            // Reset to what the default is before setting the response
-            reset && (this._data = Object.merge({}, this.options.defaults));
-            this.set(this.parse.apply(this, arguments));
+            this.set(response);
         }
 
         this.setNew(false);
@@ -101,33 +101,29 @@ var Model = new Class({
         return this;
     },
 
-    fetch: function(callback, reset){
+    fetch: function(callback){
         var data = this.toJSON();
 
         // Issue read command to server
         this.sync('read', data, function(response){
-            this._syncFetch(response, callback, reset);
-            this.fireEvent('read', arguments);
+            this._syncFetch(response, callback);
         });
 
         return this;
     },
 
     _syncDestroy: function(response, callback){
-        this.fireEvent('delete', arguments);
-
         callback && callback.call(this, response);
         return this;
     },
 
-    destroy: function(options, callback){
+    destroy: function(callback){
         // Cancel the currently executing request before continuing
         this.request.cancel();
 
         // Issue delete command to server
-        this.sync('delete', options, function(response){
+        this.sync('delete', {}, function(response){
             this._syncDestroy(response, callback);
-            this.fireEvent('delete', arguments);
         });
 
         this.parent();
