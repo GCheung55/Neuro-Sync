@@ -1,9 +1,10 @@
 /**
  * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
+ * @requires [MooTools-Core/Class]
  */
 
 var Sync = require('../src/Sync'),
-    Is = require('Neuro/lib/util/Is').Is;
+    Is = require('neuro-is').Is;
 
 /**
  * Create a Class that contains all the Sync specific Signals
@@ -13,17 +14,16 @@ var SyncSignals = {},
     signalSyncPrefix = 'signalSync',
     syncPrefix = 'sync:',
     syncFnc = function(str){
-        str = syncPrefix + str.toLowerCase();
         return function(){
             this.fireEvent(str, arguments);
             return this;
         };
     };
 
-SyncSignals[signalSyncPrefix] = syncFnc('');
+SyncSignals[signalSyncPrefix] = syncFnc('sync');
 
 ['Request', 'Complete', 'Success', 'Failure', 'Error'].each(function(item){
-    SyncSignals[signalSyncPrefix + item] = syncFnc(item);
+    SyncSignals[signalSyncPrefix + item] = syncFnc(syncPrefix + item.toLowerCase());
 });
 
 SyncSignals = new Class(SyncSignals);
@@ -63,7 +63,7 @@ var SyncMix = new Class({
                     _this.signalSyncError();
                     _this.fireEvent('sync:' + getSyncId());
                 },
-                sync: function(){
+                sync: function(response){
                     _this.signalSync(response);
                     _this.fireEvent('sync:' + getSyncId());
                 }
@@ -75,10 +75,23 @@ var SyncMix = new Class({
         return this;
     },
 
+    // Implement just the original check method so that SyncMix's sync method can do the same
+    // that Request does. It provides chaining when using the sync method.
+    syncCheck: function(){
+        var request = this.request;
+
+        if (!request.running) return true;
+        switch (request.options.link){
+            case 'cancel': this.cancel(); return true;
+            case 'chain': request.chain(this.caller.pass(arguments, this)); return false;
+        }
+        return false;
+    },
+
     sync: function(method, data, callback){
         var request = this.request;
         // This will utilize requests check to decide to cancel and continue, or chain
-        if (!request.check.apply(request, arguments)) return this;
+        if (!this.syncCheck(method, data, callback)) return this;
 
         this._incrementSyncId();
 
@@ -90,8 +103,10 @@ var SyncMix = new Class({
 
         if (callback && Is.Function(callback)) {            
             // this.incrementOnceId();
-
-            this._addEventOnce(callback);
+            this._addEventOnce(function(){
+                callback.apply(this, arguments);
+                this.fireEvent(method, arguments);
+            });
         }
 
         request[method](data);
@@ -121,7 +136,7 @@ var SyncMix = new Class({
         return this;
     }.protect(),
 
-    parse: function(response, _this){
+    process: function(response){
         return response;
     },
 
@@ -131,5 +146,7 @@ var SyncMix = new Class({
         return this;
     }
 });
+
+
 
 exports.Sync = SyncMix;
