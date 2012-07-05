@@ -1,3 +1,8 @@
+/**
+ * Sync, inherits Request.JSON methods, providing additional CRUD methods
+ *
+ * @requires [MooTools-Core/Class, MooTools-Core/Request/Request.JSON]
+ */
 var REST = function(type){
     return function(){
         this[type].apply(this, arguments);
