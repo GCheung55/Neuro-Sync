@@ -10,12 +10,12 @@
  * @requires [MooTools-Core/Class]
  */
 
-var Neuro = require('Neuro'),
-    Sync = require('./Sync'),
+var modelObj = require('Neuro/src/Model'),
+    Sync = require('./Sync').Sync,
     Mixins = require('../mixins/sync');
 
 var Model = new Class({
-    Extends: Neuro.Model,
+    Extends: modelObj.Model,
 
     Implements: [Mixins.Sync],
 
@@ -62,18 +62,11 @@ var Model = new Class({
         return this;
     },
 
-    save: function(prop, val, callback){
+    save: function(callback){
         // Determine whether method is create or update;
         var isNew = this.isNew(),
             method = ['create', 'update'][+isNew],
-            data;
-
-        // Set data if property exists
-        if (prop) {
-            this.set(prop, val);
-        }
-
-        data = this.toJSON();
+            data = this.toJSON();
 
         // Issue create/update command to server
         this.sync(method, data, function(response){
@@ -132,4 +125,4 @@ var Model = new Class({
     }
 });
 
-module.exports = Model;
+modelObj.Model =exports.Model = Model;
