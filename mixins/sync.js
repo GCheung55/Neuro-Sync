@@ -3,7 +3,7 @@
  * @requires [MooTools-Core/Class]
  */
 
-var Sync = require('../src/Sync'),
+var Sync = require('../src/Sync').Sync,
     Is = require('neuro-is').Is;
 
 /**
@@ -136,6 +136,12 @@ var SyncMix = new Class({
         return this;
     }.protect(),
 
+    /**
+     * Process the response data before it's added or set by the Collection or Model during request response.
+     * This should be refactored by your super Class of Collection or Model.
+     * @param  {Object} response The response object from the request
+     * @return {Object}          The returned object would be used to add / set in the Collection or Model. Nothing returned means nothing is added / set.
+     */
     process: function(response){
         return response;
     },

@@ -27,4 +27,4 @@ var Sync = new Class({
     update: REST('PUT')
 });
 
-module.exports = Sync;
+exports.Sync = Sync;

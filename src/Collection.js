@@ -10,18 +10,19 @@
  * @requires [MooTools-Core/Class]
  */
 
-var Neuro = require('Neuro'),
-    Sync = require('./Sync'),
+var collectionObj = require('Neuro/src/Collection'),
+    Model = require('./Model').Model,
+    Sync = require('./Sync').Sync,
     Mixins = require('../mixins/sync');
 
 var Collection = new Class({
-    Extends: Neuro.Collection,
+    Extends: collectionObj.Collection,
 
     Implements: [Mixins.Sync],
 
     options: {
         request: {},
-        Model: Neuro.Model
+        Model: Model
     },
 
     setup: function(models, options){
@@ -58,4 +59,4 @@ var Collection = new Class({
     }
 });
 
-module.exports = Collection;
+collectionObj.Collection = exports.Collection = Collection;
