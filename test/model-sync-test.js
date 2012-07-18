@@ -254,14 +254,14 @@ buster.testCase('Neuro Sync Model', {
             // Set the link option to chain
             model.request.setOptions({link: 'chain'});
 
-            model.save(void 0, void 0, function(response){
+            model.save(function(response){
                 spy(response.count);
                 assert.calledWith(spy, 1);
                 
                 this.request.addEvent('request', function(){
                     server.respond([response.code, response.contentType, JSON.stringify({count:2})]);
                 });
-            }).save(void 0, void 0, function(response){
+            }).save(function(response){
                 spy(response.count);
                 assert.calledWith(spy, 2);
                 done();
@@ -293,23 +293,6 @@ buster.testCase('Neuro Sync Model', {
 
             assert.calledWith(spy, 'create');
             assert.calledWith(spy, 'update');
-        },
-
-        'save should set prop/values before sending a request if prop/values are passed to the method': function(){
-            var spy = this.spy(),
-                model = this.mockSyncModel,
-                response = this.mockResponse,
-                server = this.server;
-
-            model.addEvent('save', function(response){spy();});
-
-            model.save({firstName: 'Patrick'});
-
-            assert.equals(model.get('firstName'), 'Patrick');
-
-            server.respond([response.code, response.contentType, '{}']);
-
-            assert.called(spy);
         },
 
         'save should send the model\'s data': function(){
