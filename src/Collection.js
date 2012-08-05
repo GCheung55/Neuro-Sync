@@ -10,7 +10,7 @@
  * @requires [MooTools-Core/Class]
  */
 
-var collectionObj = require('Neuro/src/Collection'),
+var collectionObj = require('Neuro/src/collection/main'),
     Model = require('./Model').Model,
     Sync = require('./Sync').Sync,
     Mixins = require('../mixins/sync');

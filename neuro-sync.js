@@ -12,16 +12,16 @@
 })({
     "0": function(require, module, exports, global) {
         var Neuro = require("1");
-        Neuro.Sync = require("d").Sync;
-        Neuro.Model = require("e").Model;
-        Neuro.Collection = require("g").Collection;
+        Neuro.Sync = require("f").Sync;
+        Neuro.Model = require("g").Model;
+        Neuro.Collection = require("i").Collection;
         exports = module.exports = Neuro;
     },
     "1": function(require, module, exports, global) {
         var Neuro = require("2");
         Neuro.Model = require("3").Model;
         Neuro.Collection = require("b").Collection;
-        Neuro.View = require("c").View;
+        Neuro.View = require("d").View;
         exports = module.exports = Neuro;
     },
     "2": function(require, module, exports, global) {
@@ -31,10 +31,10 @@
         exports = module.exports = Neuro;
     },
     "3": function(require, module, exports, global) {
-        var Model = require("4").Model, Butler = require("a").Butler;
-        var curryGetter = function(isPrevious) {
+        var Model = require("4").Model, Butler = require("9").Butler;
+        var curryGetter = function(type) {
             return function(prop) {
-                var accessor = this.getAccessor(prop, isPrevious ? "getPrevious" : "get"), accessorName = this._accessorName;
+                var accessor = this.getAccessor(prop, type), accessorName = this._accessorName;
                 if (accessor && accessorName != prop) {
                     return accessor();
                 }
@@ -56,8 +56,8 @@
                 }
                 return this.parent(prop, val);
             }.overloadSetter(),
-            get: curryGetter(),
-            getPrevious: curryGetter(true),
+            get: curryGetter("get"),
+            getPrevious: curryGetter("getPrevious"),
             setAccessor: function(name, val) {
                 if (name && val) {
                     if (val.get && !val.getPrevious) {
@@ -70,10 +70,7 @@
         });
     },
     "4": function(require, module, exports, global) {
-        var Is = require("5").Is, Silence = require("6").Silence, Connector = require("7").Connector, signalFactory = require("9");
-        var isObject = function(obj) {
-            return Type.isObject(obj);
-        };
+        var Is = require("5").Is, Silence = require("6").Silence, Connector = require("7").Connector, Butler = require("9").Butler, signalFactory = require("a");
         var cloneVal = function(val) {
             switch (typeOf(val)) {
               case "array":
@@ -88,9 +85,8 @@
             return val;
         };
         var curryGetter = function(type) {
-            var isPrevious = type == "_previousData" || void 0;
             return function(prop) {
-                return this._deepGet(this[type], prop, isPrevious);
+                return this[type][prop];
             }.overloadGetter();
         };
         var curryGetData = function(type) {
@@ -109,7 +105,7 @@
             }
         }));
         var Model = new Class({
-            Implements: [ Connector, Events, Options, Silence, Signals ],
+            Implements: [ Connector, Butler, Events, Options, Silence, Signals ],
             primaryKey: undefined,
             _data: {},
             _changed: false,
@@ -137,51 +133,11 @@
                 }
                 return this;
             },
-            _deepSet: function(object, path, val) {
-                path = typeof path == "string" ? path.split(".") : path.slice(0);
-                var key = path.pop(), len = path.length, i = 0, current;
-                while (len--) {
-                    current = path[i++];
-                    object = current in object ? object[current] : object[current] = {};
-                    if (instanceOf(object, Model)) {
-                        path = path.slice(i);
-                        path.push(key);
-                        object.set(path.join("."), val);
-                        return this;
-                    }
-                }
-                if (isObject(object)) {
-                    object[key] = val;
-                } else {
-                    throw new Error("Can not set to this path: " + path);
-                }
-                return this;
-            },
-            _deepGet: function(object, path, prev) {
-                if (typeof path == "string") {
-                    path = path.split(".");
-                }
-                for (var i = 0, l = path.length; i < l; i++) {
-                    if (!object) continue;
-                    if (hasOwnProperty.call(object, path[i])) {
-                        object = object[path[i]];
-                    } else if (instanceOf(object, Model)) {
-                        object = object[prev ? "getPrevious" : "get"](path[i]);
-                    } else {
-                        return object[path[i]];
-                    }
-                }
-                return object;
-            },
             __set: function(prop, val) {
                 var old = this.get(prop);
                 if (!Is.Equal(old, val)) {
-                    val = cloneVal(val);
-                    this._deepSet(this._data, prop, val);
-                    if (Is.Equal(this.get(prop), val)) {
-                        this._changed = true;
-                        this._deepSet(this._changedProperties, prop, val);
-                    }
+                    this._changed = true;
+                    this._data[prop] = this._changedProperties[prop] = cloneVal(val);
                 }
                 return this;
             }.overloadSetter(),
@@ -199,11 +155,9 @@
                     prop = instanceOf(prop, Model) ? prop.getData() : prop;
                     this._set(prop, val);
                     if (!isSetting) {
-                        if (this._changed) {
-                            this._changeProperty(this._changedProperties);
-                            this.signalChange();
-                            this._resetChanged();
-                        }
+                        this.changeProperty(this._changedProperties);
+                        this.change();
+                        this._resetChanged();
                     }
                 }
                 return this;
@@ -228,7 +182,7 @@
                     len = prop.length;
                     while (len--) {
                         item = prop[i++];
-                        props[item] = this._deepGet(defaults, item);
+                        props[item] = defaults[item];
                     }
                 } else {
                     props = defaults;
@@ -246,20 +200,24 @@
             getPrevious: curryGetter("_previousData"),
             getPreviousData: curryGetData("getPrevious"),
             _resetChanged: function() {
-                this._changed = false;
-                this._changedProperties = {};
+                if (this._changed) {
+                    this._changed = false;
+                    this._changedProperties = {};
+                }
                 return this;
             },
-            _changeProperty: function(object, basePath) {
-                basePath = basePath ? basePath + "." : "";
-                Object.each(object, function(val, prop) {
-                    var path = basePath + prop, newVal = this.get(path), oldVal = this.getPrevious(path), newValIsObject = isObject(newVal), oldValIsObject = isObject(oldVal);
-                    this.signalChangeProperty(path, newVal, oldVal);
-                    newValIsObject && !instanceOf(object, Class) && this._changeProperty(val, path);
-                    oldValIsObject && this._changeProperty(oldVal, path);
-                }, this);
+            change: function() {
+                if (this._changed) {
+                    this.signalChange();
+                }
                 return this;
             },
+            changeProperty: function(prop, val) {
+                if (this._changed) {
+                    this.signalChangeProperty(prop, val, this.getPrevious(prop));
+                }
+                return this;
+            }.overloadSetter(),
             destroy: function() {
                 this.signalDestroy();
                 return this;
@@ -476,31 +434,14 @@
         });
     },
     "9": function(require, module, exports, global) {
-        exports = module.exports = function(names, curryFnc, stack) {
-            if (!Type.isFunction(curryFnc)) {
-                stack = curryFnc;
-                curryFnc = undefined;
-            }
-            stack = stack || {};
-            Array.from(names).each(function(name) {
-                stack["signal" + name.capitalize()] = curryFnc ? curryFnc(name) : function() {
-                    !this.isSilent() && this.fireEvent(name, this);
-                    return this;
-                };
-            });
-            return stack;
-        };
-    },
-    a: function(require, module, exports, global) {
-        var modelObj = require("4");
-        exports.Butler = new Class({
+        var Butler = new Class({
+            _accessors: {},
             _accessorName: undefined,
             options: {
                 accessors: {}
             },
             setupAccessors: function() {
-                this._accessors = new modelObj.Model;
-                this.setAccessor(this.options.accessors);
+                this.setAccessor(Object.merge({}, this._accessors, this.options.accessors));
                 return this;
             },
             isAccessing: function() {
@@ -527,29 +468,52 @@
                             f._orig = fnc;
                         }
                     }, this);
-                    this._accessors.set(name, accessors);
+                    this._accessors[name] = accessors;
                 }
                 return this;
             }.overloadSetter(),
             getAccessor: function(name, type) {
-                var accessors;
-                if (name) {
-                    name = type ? name + "." + type : name;
-                    accessors = this._accessors.get(name);
+                var accessors = this._accessors[name];
+                if (type) {
+                    return accessors && accessors[type];
                 }
                 return accessors;
             },
             unsetAccessor: function(name, type) {
                 if (name) {
-                    name = type ? name + "." + type : name;
-                    this._accessors.unset(name);
+                    if (type) {
+                        this._accessors[name][type] = void 0;
+                    } else {
+                        this._accessors[name] = void 0;
+                    }
                 }
                 return this;
             }
         });
+        exports.Butler = Butler;
+    },
+    a: function(require, module, exports, global) {
+        exports = module.exports = function(names, curryFnc, stack) {
+            if (!Type.isFunction(curryFnc)) {
+                stack = curryFnc;
+                curryFnc = undefined;
+            }
+            stack = stack || {};
+            Array.from(names).each(function(name) {
+                stack["signal" + name.capitalize()] = curryFnc ? curryFnc(name) : function() {
+                    !this.isSilent() && this.fireEvent(name, this);
+                    return this;
+                };
+            });
+            return stack;
+        };
     },
     b: function(require, module, exports, global) {
-        var Model = require("3").Model, Silence = require("6").Silence, Connector = require("7").Connector, signalFactory = require("9");
+        var Collection = require("c").Collection;
+        exports.Collection = Collection;
+    },
+    c: function(require, module, exports, global) {
+        var Model = require("3").Model, Silence = require("6").Silence, Connector = require("7").Connector, signalFactory = require("a");
         var Signals = new Class(signalFactory([ "empty", "sort" ], signalFactory([ "add", "remove" ], function(name) {
             return function(model) {
                 !this.isSilent() && this.fireEvent(name, [ this, model ]);
@@ -682,8 +646,12 @@
         });
         exports.Collection = Collection;
     },
-    c: function(require, module, exports, global) {
-        var Connector = require("7").Connector, Silence = require("6").Silence, signalFactory = require("9");
+    d: function(require, module, exports, global) {
+        var View = require("e").View;
+        exports.View = View;
+    },
+    e: function(require, module, exports, global) {
+        var Connector = require("7").Connector, Silence = require("6").Silence, signalFactory = require("a");
         var eventHandler = function(handler) {
             return function() {
                 var events = this.options.events, element = this.element;
@@ -712,11 +680,11 @@
                 events: {}
             },
             initialize: function(options) {
+                this.setOptions(options);
                 this.setup(options);
                 this.signalReady();
             },
             setup: function(options) {
-                this.setOptions(options);
                 if (this.options.element) {
                     this.setElement(this.options.element);
                 }
@@ -771,7 +739,7 @@
         });
         exports.View = View;
     },
-    d: function(require, module, exports, global) {
+    f: function(require, module, exports, global) {
         var REST = function(type) {
             return function() {
                 this[type].apply(this, arguments);
@@ -789,8 +757,8 @@
         });
         exports.Sync = Sync;
     },
-    e: function(require, module, exports, global) {
-        var modelObj = require("3"), Sync = require("d").Sync, Mixins = require("f");
+    g: function(require, module, exports, global) {
+        var modelObj = require("3"), Sync = require("f").Sync, Mixins = require("h");
         var Model = new Class({
             Extends: modelObj.Model,
             Implements: [ Mixins.Sync ],
@@ -861,8 +829,8 @@
         });
         modelObj.Model = exports.Model = Model;
     },
-    f: function(require, module, exports, global) {
-        var Sync = require("d").Sync, Is = require("5").Is;
+    h: function(require, module, exports, global) {
+        var Sync = require("f").Sync, Is = require("5").Is;
         var SyncSignals = {}, signalSyncPrefix = "signalSync", syncPrefix = "sync:", syncFnc = function(str) {
             return function() {
                 this.fireEvent(str, arguments);
@@ -963,8 +931,8 @@
         });
         exports.Sync = SyncMix;
     },
-    g: function(require, module, exports, global) {
-        var collectionObj = require("b"), Model = require("e").Model, Sync = require("d").Sync, Mixins = require("f");
+    i: function(require, module, exports, global) {
+        var collectionObj = require("b"), Model = require("g").Model, Sync = require("f").Sync, Mixins = require("h");
         var Collection = new Class({
             Extends: collectionObj.Collection,
             Implements: [ Mixins.Sync ],
