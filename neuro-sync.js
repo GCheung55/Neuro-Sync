@@ -12,9 +12,9 @@
 })({
     "0": function(require, module, exports, global) {
         var Neuro = require("1");
-        Neuro.Sync = require("h").Sync;
-        Neuro.Model = require("i").Model;
-        Neuro.Collection = require("k").Collection;
+        Neuro.Sync = require("o").Sync;
+        Neuro.Model = require("p").Model;
+        Neuro.Collection = require("r").Collection;
         exports = module.exports = Neuro;
     },
     "1": function(require, module, exports, global) {
@@ -22,20 +22,21 @@
         Neuro.Model = require("3").Model;
         Neuro.Collection = require("c").Collection;
         Neuro.View = require("e").View;
+        Neuro.Router = require("g").Router;
+        Neuro.Route = require("h").Route;
         Neuro.Is = require("5").Is;
         Neuro.Mixins = {
             Butler: require("9").Butler,
             Connector: require("7").Connector,
             Silence: require("6").Silence,
-            Snitch: require("g").Snitch
+            Snitch: require("n").Snitch
         };
         exports = module.exports = Neuro;
     },
     "2": function(require, module, exports, global) {
-        var Neuro = {
-            version: "0.2.2"
+        exports = module.exports = {
+            version: "0.2.6"
         };
-        exports = module.exports = Neuro;
     },
     "3": function(require, module, exports, global) {
         var Model = require("4").Model, Butler = require("9").Butler, Snitch = require("b").Snitch, signalFactory = require("a");
@@ -108,6 +109,9 @@
                 }
                 return this;
             }.overloadSetter(),
+            validate: function(prop, val) {
+                return (this.getValidator("*") || this.parent).call(this, prop, val);
+            },
             proof: function() {
                 return this.parent(this.getData());
             }
@@ -284,9 +288,9 @@
         exports.Model = Model;
     },
     "5": function(require, module, exports, global) {
-        (function(context) {
-            var toString = Object.prototype.toString, hasOwnProperty = Object.prototype.hasOwnProperty, oldType = window.Type, Is = context.Is = {};
-            var Type = window.Type = function(name, object) {
+        (function(context, global) {
+            var toString = Object.prototype.toString, hasOwnProperty = Object.prototype.hasOwnProperty, oldType = global.Type, Is = context.Is = {};
+            var Type = global.Type = function(name, object) {
                 var obj = new oldType(name, object), str;
                 if (!obj) {
                     return obj;
@@ -391,7 +395,7 @@
                 }
                 obj.not = not;
             })(Is);
-        })(typeof exports != "undefined" ? exports : window);
+        })(typeof exports != "undefined" ? exports : window, this.window || global);
     },
     "6": function(require, module, exports, global) {
         var Silence = new Class({
@@ -446,10 +450,17 @@
         };
         var curryConnection = function(str) {
             var methodStr = str == "connect" ? "addEvent" : "removeEvent";
-            return function(obj, oneWay) {
+            return function(obj, key, twoWay) {
                 var map = this.options.connector;
+                if (Type.isBoolean(key)) {
+                    twoWay = key;
+                    key = undefined;
+                }
+                if (key) {
+                    map = map[key];
+                }
                 process.call(this, methodStr, map, obj);
-                !oneWay && obj && obj[str](this, true);
+                twoWay && obj && obj[str](this, key, false);
                 return this;
             };
         };
@@ -534,6 +545,7 @@
         exports.Butler = Butler;
     },
     a: function(require, module, exports, global) {
+        var prefix = "signal", hyphen = "-", colon = ":";
         exports = module.exports = function(names, curryFnc, stack) {
             if (!Type.isFunction(curryFnc)) {
                 stack = curryFnc;
@@ -541,8 +553,10 @@
             }
             stack = stack || {};
             Array.from(names).each(function(name) {
-                stack["signal" + name.capitalize()] = curryFnc ? curryFnc(name) : function() {
-                    !this.isSilent() && this.fireEvent(name, this);
+                var property = (prefix + hyphen + name.replace(colon, hyphen)).camelCase();
+                stack[property] = curryFnc ? curryFnc(name) : function() {
+                    Array.prototype.unshift.call(arguments, this);
+                    !this.isSilent() && this.fireEvent(name, arguments);
                     return this;
                 };
             });
@@ -550,6 +564,16 @@
         };
     },
     b: function(require, module, exports, global) {
+        var asterisk = "*";
+        var normalizeValidators = function(arg) {
+            var obj = {};
+            if (typeOf(arg) == "function") {
+                obj[asterisk] = arg;
+            } else {
+                obj = arg;
+            }
+            return obj;
+        };
         var Snitch = new Class({
             _validators: {},
             options: {
@@ -558,12 +582,12 @@
             setupValidators: function() {
                 var validators = this._validators;
                 this._validators = {};
-                this.setValidator(Object.merge({}, validators, this.options.validators));
+                this.setValidator(Object.merge({}, normalizeValidators(validators), normalizeValidators(this.options.validators)));
                 return this;
             },
             setValidator: function(prop, fnc) {
                 var orig = fnc;
-                if (!fnc._orig) {
+                if (fnc && !fnc._orig) {
                     fnc = fnc.bind(this);
                     fnc._orig = orig;
                 }
@@ -581,7 +605,14 @@
                 return pass;
             },
             proof: function(obj) {
-                return Snitch.proof(obj, this._validators, this);
+                var validators = Object.clone(this._validators), global = validators[asterisk], keys;
+                if (global) {
+                    delete validators[asterisk];
+                    keys = Object.keys(obj);
+                    return global(obj) && Object.keys(validators).every(keys.contains.bind(keys));
+                } else {
+                    return Snitch.proof(obj, validators);
+                }
             }
         });
         Snitch.proof = function(obj, validators) {
@@ -605,7 +636,7 @@
                 return this;
             },
             _add: function(model, at) {
-                if (!this.validate(instanceOf(model, Model) ? model.getData() : model)) {
+                if (!this.validate(model)) {
                     this.signalError(model, at);
                 } else {
                     this.parent(model, at);
@@ -613,15 +644,17 @@
                 return this;
             },
             validate: function(models) {
+                var globalValidateFnc = this.getValidator("*");
                 models = Array.from(models);
                 return models.every(function(model) {
-                    return instanceOf(model, Model) ? model.every(validateFnc, this) : Object.every(model, validateFnc, this);
+                    var isInstance = instanceOf(model, Model);
+                    return globalValidateFnc ? globalValidateFnc(isInstance ? model.getData() : model) : isInstance ? model.every(validateFnc, this) : Object.every(model, validateFnc, this);
                 }, this);
             },
             proofModel: function(models) {
                 models = Array.from(models);
                 return models.every(function(model) {
-                    return Snitch.proof(instanceOf(model, Model) ? model.getData() : model, this._validators, this);
+                    return Snitch.proof(instanceOf(model, Model) ? model.getData() : model, this._validators);
                 }, this);
             },
             proof: function() {
@@ -637,12 +670,13 @@
         var Collection = new Class({
             Implements: [ Connector, Events, Options, Silence ],
             _models: [],
-            _Model: Model,
+            _active: 0,
+            _changed: false,
             length: 0,
             primaryKey: undefined,
             options: {
                 primaryKey: undefined,
-                Model: undefined,
+                Model: Model,
                 modelOptions: undefined
             },
             initialize: function(models, options) {
@@ -651,9 +685,7 @@
             },
             setup: function(models, options) {
                 this.primaryKey = this.options.primaryKey;
-                if (this.options.Model) {
-                    this._Model = this.options.Model;
-                }
+                this._Model = this.options.Model;
                 if (models) {
                     this.add(models);
                 }
@@ -670,10 +702,36 @@
                 }
                 return !!has;
             },
+            resetChange: function() {
+                this._changed = false;
+            },
+            attachModelEvents: function(model) {
+                model.addEvents({
+                    destroy: this.bound("remove"),
+                    change: this.bound("signalChangeModel")
+                });
+                return this;
+            },
+            detachModelEvents: function(model) {
+                model.removeEvents({
+                    destroy: this.bound("remove"),
+                    change: this.bound("signalChangeModel")
+                });
+                return this;
+            },
+            act: function(fnc) {
+                this._active++;
+                fnc.call(this);
+                this._active--;
+                return this;
+            },
+            isActive: function() {
+                return !!this._active;
+            },
             _add: function(model, at) {
                 model = new this._Model(model, this.options.modelOptions);
                 if (!this.hasModel(model)) {
-                    model.addEvent("destroy", this.bound("remove"));
+                    this.attachModelEvents(model);
                     at = this.length == 0 ? void 0 : at;
                     if (at != void 0) {
                         this._models.splice(at, 0, model);
@@ -681,15 +739,23 @@
                         this._models.push(model);
                     }
                     this.length = this._models.length;
-                    this.signalAdd(model);
+                    this._changed = true;
+                    this.signalAdd(model, at != void 0 ? at : this.length - 1);
                 }
                 return this;
             },
             add: function(models, at) {
+                var currentLen = this.length;
                 models = Array.from(models);
-                var len = models.length, i = 0;
-                while (len--) {
-                    this._add(models[i++], at);
+                this.act(function() {
+                    var len = models.length, i = 0;
+                    while (len--) {
+                        this._add(models[i++], at);
+                    }
+                });
+                if (!this.isActive() && this._changed) {
+                    this.signalChange();
+                    this.resetChange();
                 }
                 return this;
             },
@@ -706,18 +772,26 @@
             },
             _remove: function(model) {
                 if (this.hasModel(model)) {
-                    model.removeEvent("destroy", this.bound("remove"));
+                    this.detachModelEvents(model);
                     this._models.erase(model);
                     this.length = this._models.length;
+                    this._changed = true;
                     this.signalRemove(model);
                 }
                 return this;
             },
             remove: function(models) {
+                var currentLen = this.length;
                 models = Array.from(models).slice();
-                var l = models.length, i = 0;
-                while (l--) {
-                    this._remove(models[i++]);
+                this.act(function() {
+                    var l = models.length, i = 0;
+                    while (l--) {
+                        this._remove(models[i++]);
+                    }
+                });
+                if (!this.isActive() && this._changed) {
+                    this.signalChange();
+                    this.resetChange();
                 }
                 return this;
             },
@@ -726,8 +800,11 @@
                 if (oldModel && newModel && this.hasModel(oldModel) && !this.hasModel(newModel)) {
                     index = this.indexOf(oldModel);
                     if (index > -1) {
-                        this.add(newModel, index);
-                        this.remove(oldModel);
+                        this.act(function() {
+                            this.add(newModel, index);
+                            this.remove(oldModel);
+                        });
+                        !this.isActive() && this.signalChange() && this.resetChange();
                     }
                 }
                 return this;
@@ -753,12 +830,7 @@
                 });
             }
         });
-        Collection.implement(signalFactory([ "empty", "sort" ], signalFactory([ "add", "remove" ], function(name) {
-            return function(model) {
-                !this.isSilent() && this.fireEvent(name, [ this, model ]);
-                return this;
-            };
-        })));
+        Collection.implement(signalFactory([ "empty", "sort", "change", "add", "remove", "change:model" ]));
         [ "forEach", "each", "invoke", "every", "filter", "clean", "indexOf", "map", "some", "associate", "link", "contains", "getLast", "getRandom", "flatten", "pick" ].each(function(method) {
             Collection.implement(method, function() {
                 return Array.prototype[method].apply(this._models, arguments);
@@ -787,14 +859,8 @@
                 return this;
             };
         };
-        var Signals = new Class(signalFactory([ "ready", "render", "dispose", "destroy" ], {
-            signalInject: function(reference, where) {
-                !this.isSilent() && this.fireEvent("inject", [ this, reference, where ]);
-                return this;
-            }
-        }));
         var View = new Class({
-            Implements: [ Connector, Events, Options, Silence, Signals ],
+            Implements: [ Connector, Events, Options, Silence ],
             options: {
                 element: undefined,
                 events: {}
@@ -829,7 +895,7 @@
                 return this;
             },
             render: function(data) {
-                this.signalRender();
+                this.signalRender.apply(this, arguments);
                 return this;
             },
             inject: function(reference, where) {
@@ -851,15 +917,452 @@
             destroy: function() {
                 var element = this.element;
                 if (element) {
-                    element && (this.detachEvents(), element.destroy(), this.element = undefined);
+                    element && (element.destroy(), this.element = undefined);
                     this.signalDestroy();
                 }
                 return this;
             }
         });
+        View.implement(signalFactory([ "ready", "render", "dispose", "destroy", "inject" ]));
         exports.View = View;
     },
     g: function(require, module, exports, global) {
+        var Collection = require("c").Collection, Route = require("h").Route, signalFactory = require("a");
+        var Router = new Class({
+            Extends: Collection,
+            options: {
+                Model: Route,
+                modelOptions: {
+                    defaults: {
+                        typecast: false,
+                        normalizer: null
+                    }
+                },
+                greedy: false,
+                greedyEnabled: true
+            },
+            _prevRoutes: [],
+            _prevMatchedRequest: null,
+            _prevBypassedRequest: null,
+            _add: function(route) {
+                var priority = instanceOf(route, Route) ? route.get("priority") : route.priority || (route.priority = 0);
+                this.parent(route, this._calcPriority(priority));
+                return this;
+            },
+            _calcPriority: function(priority) {
+                var route, n = this.length;
+                do {
+                    --n;
+                } while ((route = this.get(n), route) && priority <= route.get("priority"));
+                return n + 1;
+            },
+            resetState: function() {
+                this._prevRoutes.length = 0;
+                this._prevMatchedRequest = null;
+                this._prevBypassedRequest = null;
+                return this;
+            },
+            parse: function(request, defaultArgs) {
+                request = request || "";
+                defaultArgs = defaultArgs || [];
+                if (request !== this._prevMatchedRequest && request !== this._prevBypassedRequest) {
+                    var routes = this._getMatchedRoutes(request), i = 0, n = routes.length, cur;
+                    if (n) {
+                        this._prevMatchedRequest = request;
+                        this._notifyPrevRoutes(routes, request);
+                        this._prevRoutes = routes;
+                        while (i < n) {
+                            cur = routes[i];
+                            cur.route.signalMatch.apply(cur.route, defaultArgs.concat(cur.params));
+                            cur.isFirst = !i;
+                            this.signalMatch.apply(this, defaultArgs.concat([ request, cur ]));
+                            i += 1;
+                        }
+                    } else {
+                        this._prevBypassedRequest = request;
+                        this.signalDefault.apply(this, defaultArgs.concat([ request ]));
+                    }
+                }
+                return this;
+            },
+            _notifyPrevRoutes: function(matchedRoutes, request) {
+                var i = 0, prev;
+                while (prev = this._prevRoutes[i++]) {
+                    if (this._didSwitch(prev.route, matchedRoutes)) {
+                        prev.route.signalPass(request);
+                    }
+                }
+                return this;
+            },
+            _didSwitch: function(route, matchedRoutes) {
+                var i = 0, matched;
+                while (matched = matchedRoutes[i++]) {
+                    if (matched.route === route) {
+                        return false;
+                    }
+                }
+                return true;
+            },
+            _getMatchedRoutes: function(request) {
+                var res = [], n = this.length, route;
+                while (route = this.get(--n)) {
+                    if ((!res.length || this.options.greedy || route.get("greedy")) && route.match(request)) {
+                        res.push({
+                            route: route,
+                            params: route.parse(request)
+                        });
+                    }
+                    if (!this.options.greedyEnabled && res.length) {
+                        break;
+                    }
+                }
+                return res;
+            }
+        });
+        Router.NORM_AS_ARRAY = function(req, vals) {
+            return [ vals.vals_ ];
+        };
+        Router.NORM_AS_OBJECT = function(req, vals) {
+            return [ vals ];
+        };
+        Router.implement(signalFactory([ "match", "default" ]));
+        exports.Router = Router;
+    },
+    h: function(require, module, exports, global) {
+        var Route = require("i").Route, PatternLexer = require("l");
+        Route.PatternLexer = PatternLexer;
+        exports.Route = Route;
+    },
+    i: function(require, module, exports, global) {
+        var Model = require("3").Model, signalFactory = require("a"), typecastValue = require("j"), decodeQueryString = require("k");
+        var _hasOptionalGroupBug = /t(.+)?/.exec("t")[1] === "";
+        var Route = new Class({
+            Extends: Model,
+            options: {
+                defaults: {
+                    pattern: void 0,
+                    priority: 0,
+                    normalizer: void 0,
+                    greedy: false,
+                    rules: {},
+                    typecast: false,
+                    patternLexer: void 0
+                },
+                accessors: {
+                    pattern: {
+                        set: function(prop, value) {
+                            if (this.validate(prop, value)) {
+                                this.set(prop, value);
+                                var obj = {}, lexer = this.get("patternLexer");
+                                obj._matchRegexp = value;
+                                obj._optionalParamsIds = obj._paramsIds = void 0;
+                                if (typeOf(value) != "regexp") {
+                                    obj._paramsIds = lexer.getParamIds(value);
+                                    obj._optionalParamsIds = lexer.getOptionalParamsIds(value);
+                                    obj._matchRegexp = lexer.compilePattern(value);
+                                }
+                                this.set(obj);
+                            }
+                        }
+                    },
+                    rules: {
+                        set: function(prop, value) {
+                            if (this.validate(prop, value)) {
+                                this.set(prop, new Model(value));
+                            }
+                        }
+                    },
+                    callback: {
+                        set: function(prop, value) {
+                            if (typeOf(value) == "function") {
+                                this.addEvent("match", value);
+                            }
+                        }
+                    },
+                    patternLexer: {
+                        get: function() {
+                            return this.get("patternLexer") || Route.PatternLexer;
+                        }
+                    }
+                },
+                validators: {
+                    pattern: function(val) {
+                        return [ "null", "regexp", "string" ].contains(typeOf(val));
+                    },
+                    priority: Type.isNumber,
+                    normalizer: Type.isFunction,
+                    greedy: Type.isBoolean,
+                    rules: Type.isObject,
+                    patternLexer: Type.isObject
+                }
+            },
+            match: function(request) {
+                request = request || "";
+                return this.get("_matchRegexp").test(request) && this._validateParams(request);
+            },
+            parse: function(request) {
+                return this._getParamsArray(request);
+            },
+            _validateParams: function(request) {
+                var rules = this.get("rules"), values = this._getParamsObject(request);
+                return rules.every(function(rule, key) {
+                    return !(key != "normalize_" && !this._isValidParam(request, key, values));
+                }, this);
+            },
+            _isValidParam: function(request, prop, values) {
+                var validationRule = this.get("rules").get(prop), val = values[prop], isValid = false, isQuery = prop.indexOf("?") === 0, _optionalParamsIds = this.get("_optionalParamsIds"), type;
+                if (!val && _optionalParamsIds && _optionalParamsIds.indexOf(prop) !== -1) {
+                    return true;
+                }
+                type = typeOf(validationRule);
+                if (type !== "function" && isQuery) {
+                    val = values[prop + "_"];
+                }
+                if (type == "regexp") {
+                    isValid = validationRule.test(val);
+                } else if (type == "array") {
+                    isValid = validationRule.indexOf(val) !== -1;
+                } else if (type == "function") {
+                    isValid = validationRule(val, request, values);
+                }
+                return isValid;
+            },
+            _getParamsObject: function(request) {
+                var shouldTypecast = this.get("typecast"), _paramsIds = this.get("_paramsIds"), _optionalParamsIds = this.get("_optionalParamsIds"), values = this.get("patternLexer").getParamValues(request, this.get("_matchRegexp"), shouldTypecast), o = {}, n = values && values.length || 0, param, val;
+                while (n--) {
+                    o[n] = val = values[n];
+                    if (_paramsIds) {
+                        param = _paramsIds[n];
+                        if (param.indexOf("?") === 0 && val) {
+                            o[param + "_"] = val;
+                            values[n] = val = decodeQueryString(val);
+                        }
+                        if (_hasOptionalGroupBug && val === "" && _optionalParamsIds && _optionalParamsIds.indexOf(param) !== -1) {
+                            values[n] = val = void 0;
+                        }
+                        o[param] = val;
+                    }
+                }
+                o.request_ = shouldTypecast ? typecastValue(request) : request;
+                o.vals_ = values;
+                return o;
+            },
+            _getParamsArray: function(request) {
+                var rules = this.get("rules"), norm = rules && rules.get("normalize_") || this.get("normalizer"), obj = this._getParamsObject(request);
+                params = obj.vals_;
+                if (norm && Type.isFunction(norm)) {
+                    params = norm(request, obj);
+                }
+                return params;
+            },
+            interpolate: function(replacements) {
+                var str = this.get("patternLexer").interpolate(this.get("pattern"), replacements);
+                if (!this._validateParams(str)) {
+                    throw new Error("Generated string doesn't validate against `Route.rules`.");
+                }
+                return str;
+            }
+        });
+        Route.implement(signalFactory([ "match", "pass" ]));
+        exports.Route = Route;
+    },
+    j: function(require, module, exports, global) {
+        var UNDEF;
+        exports = module.exports = function(val) {
+            var r;
+            if (val === null || val === "null") {
+                r = null;
+            } else if (val === "true") {
+                r = true;
+            } else if (val === "false") {
+                r = false;
+            } else if (val === UNDEF || val === "undefined") {
+                r = UNDEF;
+            } else if (val === "" || isNaN(val)) {
+                r = val;
+            } else {
+                r = parseFloat(val);
+            }
+            return r;
+        };
+    },
+    k: function(require, module, exports, global) {
+        var typecastValue = require("j");
+        exports = module.exports = function(str) {
+            var queryArr = (str || "").replace("?", "").split("&"), n = queryArr.length, obj = {}, item, val;
+            while (n--) {
+                item = queryArr[n].split("=");
+                val = typecastValue(item[1]);
+                obj[item[0]] = typeof val === "string" ? decodeURIComponent(val) : val;
+            }
+            return obj;
+        };
+    },
+    l: function(require, module, exports, global) {
+        var typecastArrayValues = require("m");
+        var ESCAPE_CHARS_REGEXP = /[\\.+*?\^$\[\](){}\/'#]/g, LOOSE_SLASHES_REGEXP = /^\/|\/$/g, LEGACY_SLASHES_REGEXP = /\/$/g, PARAMS_REGEXP = /(?:\{|:)([^}:]+)(?:\}|:)/g, TOKENS = {
+            OS: {
+                rgx: /([:}]|\w(?=\/))\/?(:|(?:\{\?))/g,
+                save: "$1{{id}}$2",
+                res: "\\/?"
+            },
+            RS: {
+                rgx: /([:}])\/?(\{)/g,
+                save: "$1{{id}}$2",
+                res: "\\/"
+            },
+            RQ: {
+                rgx: /\{\?([^}]+)\}/g,
+                res: "\\?([^#]+)"
+            },
+            OQ: {
+                rgx: /:\?([^:]+):/g,
+                res: "(?:\\?([^#]*))?"
+            },
+            OR: {
+                rgx: /:([^:]+)\*:/g,
+                res: "(.*)?"
+            },
+            RR: {
+                rgx: /\{([^}]+)\*\}/g,
+                res: "(.+)"
+            },
+            RP: {
+                rgx: /\{([^}]+)\}/g,
+                res: "([^\\/?]+)"
+            },
+            OP: {
+                rgx: /:([^:]+):/g,
+                res: "([^\\/?]+)?/?"
+            }
+        }, LOOSE_SLASH = 1, STRICT_SLASH = 2, LEGACY_SLASH = 3, _slashMode = LOOSE_SLASH;
+        function precompileTokens() {
+            var key, cur;
+            for (key in TOKENS) {
+                if (TOKENS.hasOwnProperty(key)) {
+                    cur = TOKENS[key];
+                    cur.id = "__CR_" + key + "__";
+                    cur.save = "save" in cur ? cur.save.replace("{{id}}", cur.id) : cur.id;
+                    cur.rRestore = new RegExp(cur.id, "g");
+                }
+            }
+        }
+        precompileTokens();
+        function captureVals(regex, pattern) {
+            var vals = [], match;
+            regex.lastIndex = 0;
+            while (match = regex.exec(pattern)) {
+                vals.push(match[1]);
+            }
+            return vals;
+        }
+        function getParamIds(pattern) {
+            return captureVals(PARAMS_REGEXP, pattern);
+        }
+        function getOptionalParamsIds(pattern) {
+            return captureVals(TOKENS.OP.rgx, pattern);
+        }
+        function compilePattern(pattern) {
+            pattern = pattern || "";
+            if (pattern) {
+                if (_slashMode === LOOSE_SLASH) {
+                    pattern = pattern.replace(LOOSE_SLASHES_REGEXP, "");
+                } else if (_slashMode === LEGACY_SLASH) {
+                    pattern = pattern.replace(LEGACY_SLASHES_REGEXP, "");
+                }
+                pattern = replaceTokens(pattern, "rgx", "save");
+                pattern = pattern.replace(ESCAPE_CHARS_REGEXP, "\\$&");
+                pattern = replaceTokens(pattern, "rRestore", "res");
+                if (_slashMode === LOOSE_SLASH) {
+                    pattern = "\\/?" + pattern;
+                }
+            }
+            if (_slashMode !== STRICT_SLASH) {
+                pattern += "\\/?";
+            }
+            return new RegExp("^" + pattern + "$");
+        }
+        function replaceTokens(pattern, regexpName, replaceName) {
+            var cur, key;
+            for (key in TOKENS) {
+                if (TOKENS.hasOwnProperty(key)) {
+                    cur = TOKENS[key];
+                    pattern = pattern.replace(cur[regexpName], cur[replaceName]);
+                }
+            }
+            return pattern;
+        }
+        function getParamValues(request, regexp, shouldTypecast) {
+            var vals = regexp.exec(request);
+            if (vals) {
+                vals.shift();
+                if (shouldTypecast) {
+                    vals = typecastArrayValues(vals);
+                }
+            }
+            return vals;
+        }
+        function interpolate(pattern, replacements) {
+            if (typeof pattern !== "string") {
+                throw new Error("Route pattern should be a string.");
+            }
+            var replaceFn = function(match, prop) {
+                var val;
+                if (prop in replacements) {
+                    val = String(replacements[prop]);
+                    if (match.indexOf("*") === -1 && val.indexOf("/") !== -1) {
+                        throw new Error('Invalid value "' + val + '" for segment "' + match + '".');
+                    }
+                } else if (match.indexOf("{") !== -1) {
+                    throw new Error("The segment " + match + " is required.");
+                } else {
+                    val = "";
+                }
+                return val;
+            };
+            if (!TOKENS.OS.trail) {
+                TOKENS.OS.trail = new RegExp("(?:" + TOKENS.OS.id + ")+$");
+            }
+            return pattern.replace(TOKENS.OS.rgx, TOKENS.OS.save).replace(PARAMS_REGEXP, replaceFn).replace(TOKENS.OS.trail, "").replace(TOKENS.OS.rRestore, "/");
+        }
+        exports = module.exports = {
+            strict: function() {
+                _slashMode = STRICT_SLASH;
+            },
+            loose: function() {
+                _slashMode = LOOSE_SLASH;
+            },
+            legacy: function() {
+                _slashMode = LEGACY_SLASH;
+            },
+            getParamIds: getParamIds,
+            getOptionalParamsIds: getOptionalParamsIds,
+            getParamValues: getParamValues,
+            compilePattern: compilePattern,
+            interpolate: interpolate
+        };
+    },
+    m: function(require, module, exports, global) {
+        var typecastValue = require("j");
+        exports = module.exports = function(values) {
+            var n = values.length, result = [];
+            while (n--) {
+                result[n] = typecastValue(values[n]);
+            }
+            return result;
+        };
+    },
+    n: function(require, module, exports, global) {
+        var asterisk = "*";
+        var normalizeValidators = function(arg) {
+            var obj = {};
+            if (typeOf(arg) == "function") {
+                obj[asterisk] = arg;
+            } else {
+                obj = arg;
+            }
+            return obj;
+        };
         var Snitch = new Class({
             _validators: {},
             options: {
@@ -868,12 +1371,12 @@
             setupValidators: function() {
                 var validators = this._validators;
                 this._validators = {};
-                this.setValidator(Object.merge({}, validators, this.options.validators));
+                this.setValidator(Object.merge({}, normalizeValidators(validators), normalizeValidators(this.options.validators)));
                 return this;
             },
             setValidator: function(prop, fnc) {
                 var orig = fnc;
-                if (!fnc._orig) {
+                if (fnc && !fnc._orig) {
                     fnc = fnc.bind(this);
                     fnc._orig = orig;
                 }
@@ -891,7 +1394,14 @@
                 return pass;
             },
             proof: function(obj) {
-                return Snitch.proof(obj, this._validators, this);
+                var validators = Object.clone(this._validators), global = validators[asterisk], keys;
+                if (global) {
+                    delete validators[asterisk];
+                    keys = Object.keys(obj);
+                    return global(obj) && Object.keys(validators).every(keys.contains.bind(keys));
+                } else {
+                    return Snitch.proof(obj, validators);
+                }
             }
         });
         Snitch.proof = function(obj, validators) {
@@ -901,7 +1411,7 @@
         };
         exports.Snitch = Snitch;
     },
-    h: function(require, module, exports, global) {
+    o: function(require, module, exports, global) {
         var REST = function(type) {
             return function() {
                 this[type].apply(this, arguments);
@@ -919,8 +1429,8 @@
         });
         exports.Sync = Sync;
     },
-    i: function(require, module, exports, global) {
-        var modelObj = require("3"), Sync = require("h").Sync, Mixins = require("j");
+    p: function(require, module, exports, global) {
+        var modelObj = require("3"), Sync = require("o").Sync, Mixins = require("q");
         var Model = new Class({
             Extends: modelObj.Model,
             Implements: [ Mixins.Sync ],
@@ -991,8 +1501,8 @@
         });
         modelObj.Model = exports.Model = Model;
     },
-    j: function(require, module, exports, global) {
-        var Sync = require("h").Sync, Is = require("5").Is;
+    q: function(require, module, exports, global) {
+        var Sync = require("o").Sync, Is = require("5").Is;
         var SyncSignals = {}, signalSyncPrefix = "signalSync", syncPrefix = "sync:", syncFnc = function(str) {
             return function() {
                 this.fireEvent(str, arguments);
@@ -1093,8 +1603,8 @@
         });
         exports.Sync = SyncMix;
     },
-    k: function(require, module, exports, global) {
-        var collectionObj = require("c"), Model = require("i").Model, Sync = require("h").Sync, Mixins = require("j");
+    r: function(require, module, exports, global) {
+        var collectionObj = require("c"), Model = require("p").Model, Sync = require("o").Sync, Mixins = require("q");
         var Collection = new Class({
             Extends: collectionObj.Collection,
             Implements: [ Mixins.Sync ],
