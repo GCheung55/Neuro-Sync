@@ -11,9 +11,9 @@
  */
 
 var collectionObj = require('Neuro/src/collection/main'),
-    Model = require('./Model').Model,
-    Sync = require('./Sync').Sync,
-    Mixins = require('../mixins/sync');
+    Model = require('../model/main').Model,
+    Sync = require('../sync/main').Sync,
+    Mixins = require('../../mixins/sync');
 
 var Collection = new Class({
     Extends: collectionObj.Collection,
@@ -22,7 +22,9 @@ var Collection = new Class({
 
     options: {
         request: {},
-        Model: Model
+        Model: {
+            constructor: Model
+        }
     },
 
     setup: function(models, options){

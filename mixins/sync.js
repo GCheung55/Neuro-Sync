@@ -3,7 +3,7 @@
  * @requires [MooTools-Core/Class]
  */
 
-var Sync = require('../src/Sync').Sync,
+var Sync = require('../src/sync/main').Sync,
     Is = require('neuro-is').Is;
 
 /**
