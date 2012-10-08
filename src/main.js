@@ -1,7 +1,7 @@
 var Neuro = require('Neuro');
 
-Neuro.Sync = require('./Sync').Sync;
-Neuro.Model = require('./Model').Model;
-Neuro.Collection = require('./Collection').Collection;
+Neuro.Sync = require('./sync/main').Sync;
+Neuro.Model = require('./model/main').Model;
+Neuro.Collection = require('./collection/main').Collection;
 
 exports = module.exports = Neuro;
