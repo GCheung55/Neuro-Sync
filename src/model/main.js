@@ -11,8 +11,8 @@
  */
 
 var modelObj = require('Neuro/src/model/main'),
-    Sync = require('./Sync').Sync,
-    Mixins = require('../mixins/sync');
+    Sync = require('../sync/main').Sync,
+    Mixins = require('../../mixins/sync');
 
 var Model = new Class({
     Extends: modelObj.Model,

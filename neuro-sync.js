@@ -26,7 +26,7 @@
         Neuro.Route = require("h").Route;
         Neuro.Is = require("5").Is;
         Neuro.Mixins = {
-            Butler: require("9").Butler,
+            Butler: require("a").Butler,
             Connector: require("7").Connector,
             Silence: require("6").Silence,
             Snitch: require("n").Snitch
@@ -35,11 +35,11 @@
     },
     "2": function(require, module, exports, global) {
         exports = module.exports = {
-            version: "0.2.6"
+            version: "0.2.7"
         };
     },
     "3": function(require, module, exports, global) {
-        var Model = require("4").Model, Butler = require("9").Butler, Snitch = require("b").Snitch, signalFactory = require("a");
+        var Model = require("4").Model, Butler = require("a").Butler, Snitch = require("b").Snitch, signalFactory = require("9");
         var curryGetter = function(type) {
             return function(prop) {
                 var accessor = this.getAccessor(prop, type), accessorName = this._accessorName;
@@ -118,7 +118,7 @@
         });
     },
     "4": function(require, module, exports, global) {
-        var Is = require("5").Is, Silence = require("6").Silence, Connector = require("7").Connector, Butler = require("9").Butler, signalFactory = require("a");
+        var Is = require("5").Is, Silence = require("6").Silence, Connector = require("7").Connector, signalFactory = require("9");
         var cloneVal = function(val) {
             switch (typeOf(val)) {
               case "array":
@@ -147,7 +147,7 @@
             };
         };
         var Model = new Class({
-            Implements: [ Connector, Butler, Events, Options, Silence ],
+            Implements: [ Connector, Events, Options, Silence ],
             primaryKey: undefined,
             _data: {},
             _changed: false,
@@ -334,7 +334,7 @@
             var has = function(obj, key) {
                 return obj.hasOwnProperty(key);
             };
-            var eq = function(a, b, stack) {
+            var eq = function(a, b, aStack, bStack) {
                 if (a === b) return a !== 0 || 1 / a == 1 / b;
                 if (a == null || b == null) return a === b;
                 if (a.isEqual && Is.Function(a.isEqual)) return a.isEqual(b);
@@ -346,27 +346,29 @@
                 if (matchMap[typeA]) {
                     return matchMap[typeA](a, b);
                 }
-                if (typeA != "object" || typeB != "object") return false;
-                var length = stack.length;
+                if (typeof a != "object" || typeof b != "object") return false;
+                var length = aStack.length;
                 while (length--) {
-                    if (stack[length] == a) return true;
+                    if (aStack[length] == a) return bStack[length] == b;
                 }
-                stack.push(a);
+                aStack.push(a);
+                bStack.push(b);
                 var size = 0, result = true;
                 if (typeA == "array") {
                     size = a.length;
                     result = size == b.length;
                     if (result) {
                         while (size--) {
-                            if (!(result = size in a == size in b && eq(a[size], b[size], stack))) break;
+                            if (!(result = eq(a[size], b[size], aStack, bStack))) break;
                         }
                     }
                 } else {
-                    if ("constructor" in a != "constructor" in b || a.constructor != b.constructor) return false;
+                    var aConstructor = a.constructor, bConstructor = b.constructor;
+                    if (aConstructor !== bConstructor && !(Is.Function(aConstructor) && instanceOf(aConstructor, aConstructor) && Is.Function(bConstructor) && instanceOf(bConstructor, bConstructor))) return false;
                     for (var key in a) {
                         if (has(a, key)) {
                             size++;
-                            if (!(result = has(b, key) && eq(a[key], b[key], stack))) break;
+                            if (!(result = has(b, key) && eq(a[key], b[key], aStack, bStack))) break;
                         }
                     }
                     if (result) {
@@ -376,11 +378,12 @@
                         result = !size;
                     }
                 }
-                stack.pop();
+                aStack.pop();
+                bStack.pop();
                 return result;
             };
             Is.Equal = function(a, b) {
-                return eq(a, b, []);
+                return eq(a, b, [], []);
             };
             (function(obj) {
                 var not = {};
@@ -483,6 +486,25 @@
         });
     },
     "9": function(require, module, exports, global) {
+        var prefix = "signal", hyphen = "-", colon = ":";
+        exports = module.exports = function(names, curryFnc, stack) {
+            if (!Type.isFunction(curryFnc)) {
+                stack = curryFnc;
+                curryFnc = undefined;
+            }
+            stack = stack || {};
+            Array.from(names).each(function(name) {
+                var property = (prefix + hyphen + name.replace(colon, hyphen)).camelCase();
+                stack[property] = curryFnc ? curryFnc(name) : function() {
+                    Array.prototype.unshift.call(arguments, this);
+                    !this.isSilent() && this.fireEvent(name, arguments);
+                    return this;
+                };
+            });
+            return stack;
+        };
+    },
+    a: function(require, module, exports, global) {
         var Butler = new Class({
             _accessors: {},
             _accessorName: undefined,
@@ -543,25 +565,6 @@
             }
         });
         exports.Butler = Butler;
-    },
-    a: function(require, module, exports, global) {
-        var prefix = "signal", hyphen = "-", colon = ":";
-        exports = module.exports = function(names, curryFnc, stack) {
-            if (!Type.isFunction(curryFnc)) {
-                stack = curryFnc;
-                curryFnc = undefined;
-            }
-            stack = stack || {};
-            Array.from(names).each(function(name) {
-                var property = (prefix + hyphen + name.replace(colon, hyphen)).camelCase();
-                stack[property] = curryFnc ? curryFnc(name) : function() {
-                    Array.prototype.unshift.call(arguments, this);
-                    !this.isSilent() && this.fireEvent(name, arguments);
-                    return this;
-                };
-            });
-            return stack;
-        };
     },
     b: function(require, module, exports, global) {
         var asterisk = "*";
@@ -666,7 +669,7 @@
         });
     },
     d: function(require, module, exports, global) {
-        var Model = require("3").Model, Silence = require("6").Silence, Connector = require("7").Connector, signalFactory = require("a");
+        var Model = require("3").Model, Silence = require("6").Silence, Connector = require("7").Connector, signalFactory = require("9");
         var Collection = new Class({
             Implements: [ Connector, Events, Options, Silence ],
             _models: [],
@@ -676,8 +679,10 @@
             primaryKey: undefined,
             options: {
                 primaryKey: undefined,
-                Model: Model,
-                modelOptions: undefined
+                Model: {
+                    constructor: Model,
+                    options: undefined
+                }
             },
             initialize: function(models, options) {
                 this.setOptions(options);
@@ -685,7 +690,7 @@
             },
             setup: function(models, options) {
                 this.primaryKey = this.options.primaryKey;
-                this._Model = this.options.Model;
+                this._Model = this.options.Model.constructor;
                 if (models) {
                     this.add(models);
                 }
@@ -729,7 +734,7 @@
                 return !!this._active;
             },
             _add: function(model, at) {
-                model = new this._Model(model, this.options.modelOptions);
+                model = new this._Model(model, this.options.Model.options);
                 if (!this.hasModel(model)) {
                     this.attachModelEvents(model);
                     at = this.length == 0 ? void 0 : at;
@@ -843,7 +848,7 @@
         exports.View = View;
     },
     f: function(require, module, exports, global) {
-        var Connector = require("7").Connector, Silence = require("6").Silence, signalFactory = require("a");
+        var Connector = require("7").Connector, Silence = require("6").Silence, signalFactory = require("9");
         var eventHandler = function(handler) {
             return function() {
                 var events = this.options.events, element = this.element;
@@ -927,15 +932,17 @@
         exports.View = View;
     },
     g: function(require, module, exports, global) {
-        var Collection = require("c").Collection, Route = require("h").Route, signalFactory = require("a");
+        var collectionObj = require("c"), routeObj = require("h"), signalFactory = require("9");
         var Router = new Class({
-            Extends: Collection,
+            Extends: collectionObj.Collection,
             options: {
-                Model: Route,
-                modelOptions: {
-                    defaults: {
-                        typecast: false,
-                        normalizer: null
+                Model: {
+                    constructor: routeObj.Route,
+                    options: {
+                        defaults: {
+                            typecast: false,
+                            normalizer: null
+                        }
                     }
                 },
                 greedy: false,
@@ -945,7 +952,7 @@
             _prevMatchedRequest: null,
             _prevBypassedRequest: null,
             _add: function(route) {
-                var priority = instanceOf(route, Route) ? route.get("priority") : route.priority || (route.priority = 0);
+                var priority = instanceOf(route, routeObj.Route) ? route.get("priority") : route.priority || (route.priority = 0);
                 this.parent(route, this._calcPriority(priority));
                 return this;
             },
@@ -1034,10 +1041,10 @@
         exports.Route = Route;
     },
     i: function(require, module, exports, global) {
-        var Model = require("3").Model, signalFactory = require("a"), typecastValue = require("j"), decodeQueryString = require("k");
+        var modelObj = require("3"), signalFactory = require("9"), typecastValue = require("j"), decodeQueryString = require("k");
         var _hasOptionalGroupBug = /t(.+)?/.exec("t")[1] === "";
         var Route = new Class({
-            Extends: Model,
+            Extends: modelObj.Model,
             options: {
                 defaults: {
                     pattern: void 0,
@@ -1068,7 +1075,7 @@
                     rules: {
                         set: function(prop, value) {
                             if (this.validate(prop, value)) {
-                                this.set(prop, new Model(value));
+                                this.set(prop, new modelObj.Model(value));
                             }
                         }
                     },
@@ -1610,7 +1617,9 @@
             Implements: [ Mixins.Sync ],
             options: {
                 request: {},
-                Model: Model
+                Model: {
+                    constructor: Model
+                }
             },
             setup: function(models, options) {
                 this.parent(models, options);
