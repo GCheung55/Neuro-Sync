@@ -10,9 +10,12 @@ config["Neuro-Sync"] = {
     tests: [
         // "test/*-test.js"
         // "test/view-test.js",
-        "test/sync-test.js",
-        "test/model-sync-test.js",
-        "test/collection-sync-test.js"
+        // "test/sync-test.js",
+        // "test/model-sync-test.js"
+        // "test/collection-sync-test.js"
+        "test/sync/request-test.js",
+        "test/sync/strategy/strategy-test.js",
+        "test/sync/strategy/server-test.js"
     ],
     resources: [
         // used as a static response json stub
