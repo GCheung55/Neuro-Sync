@@ -3,37 +3,32 @@
  * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
  * 
  * @type {Class}
- * 
- * @todo Need to setup the url to be like /path/:id. This would allow plugin in data to the url
- * Then set it to the request options url property
  *
  * @requires [MooTools-Core/Class]
  */
-
-var collectionObj = require('Neuro/src/collection/main'),
-    Model = require('../model/main').Model,
-    Sync = require('../sync/main').Sync,
-    Mixins = require('../../mixins/sync');
+var collectionObj = require('Neuro/src/collection/main')
+var modelObj = require('../model/main')
+var Sync = require('../../mixins/sync').Sync
 
 var Collection = new Class({
     Extends: collectionObj.Collection,
 
-    Implements: [Mixins.Sync],
+    Implements: [Sync],
 
     options: {
-        request: {},
-        Model: {
-            constructor: Model
+        Sync: {
+            default: undefined,
+            Strategies: {}
         }
     },
 
-    setup: function(models, options){
-        this.parent(models, options);
+    setup: function(data, options){
+        this.parent(data, options);
 
-        this.setSync();
+        this.setupSync(this.options.Sync);
     },
 
-    _syncFetch: function(response, empty, callback){
+    _syncFetch: function(response, callback, empty){
         response = this.process(response);
 
         // If data returns, set it
@@ -42,21 +37,25 @@ var Collection = new Class({
             this.add(response);
         }
 
-        this.fireEvent('fetch', response);
+        this.signalFetch(response);
 
         callback && callback.call(this, response);
 
         return this;
     },
 
-    fetch: function(empty, callback){
-        var data = this.toJSON();
+    fetch: function(options, callback, empty){
+        var _this = this;
 
-        // Issue read command to server
-        this.sync('read', data, function(response){
-            this._syncFetch(response, empty, callback);
+        this.sync('fetch', options, function(response){
+            _this._syncFetch(response, callback, empty);
         });
 
+        return this;
+    },
+
+    signalFetch: function(response){
+        !this.isSilent() && this.fireEvent('fetch', response);
         return this;
     }
 });

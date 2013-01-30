@@ -169,5 +169,33 @@ exports.Server = new Class({
         this.addEvent(cancelType, cancel);
 
         return this;
+    },
+
+    save: function(options, callback){
+        var cb = function(){
+            this.setNew(false);
+            callback.apply(null, arguments);
+        }.bind(this);
+
+        options = Object.merge({}, options, {method: ['update', 'create'][+this.isNew()]});
+
+        this.sync(options, cb);
+    },
+
+    fetch: function(options, callback){
+        var cb = function(){
+            this.setNew(false);
+            callback.apply(null, arguments);
+        }.bind(this);
+
+        options = Object.merge({}, options, {method: 'read'});
+
+        this.sync(options, cb)
+    },
+
+    destroy: function(options, callback){
+        options = Object.merge({}, options, {method: 'delete'});
+
+        this.sync.apply(this, arguments);
     }
 });

@@ -164,6 +164,108 @@ buster.testCase('Neuro Sync Strategy Server', {
             this.server.respond();
 
             assert.calledWith(spy);
+        },
+
+        'with save()': {
+            'should take options and callback to make a request with': {
+                'CREATE method if is new': function(){
+                    var sync = new this.syncServer({
+                        request: {emulation: false}
+                    })
+                    var url = 'abc/def';
+                    var spy = this.spy();
+
+                    this.server.respondWith('CREATE', url, [200, {"content-type": "application/json"}, '{}']);
+
+                    assert.equals(sync.isNew(), true);
+
+                    sync.save({
+                        url: url
+                    }, spy);
+
+                    this.server.respond();
+
+                    assert.equals(this.server.requests[0].requestBody, '');
+
+                    assert.equals(sync.isNew(), false);
+
+                    assert.calledWith(spy);
+                },
+
+                'UPDATE method if is not new': function(){
+                    var sync = new this.syncServer({
+                        request: {emulation: false}
+                    })
+                    var url = 'abc/def';
+                    var spy = this.spy();
+
+                    this.server.respondWith('UPDATE', url, [200, {"content-type": "application/json"}, '{}']);
+
+                    assert.equals(sync.isNew(), true);
+
+                    sync.setNew(false);
+
+                    sync.save({
+                        url: url
+                    }, spy);
+
+                    this.server.respond();
+
+                    assert.equals(this.server.requests[0].requestBody, '');
+
+                    assert.equals(sync.isNew(), false);
+
+                    assert.calledWith(spy);
+                }
+            }
+        },
+
+        'with fetch()': {
+            'should take options and callback to make a request with READ method': function(){
+                var sync = new this.syncServer({
+                    request: {emulation: false}
+                })
+                var url = 'abc/def';
+                var spy = this.spy();
+
+                this.server.respondWith('READ', url, [200, {"content-type": "application/json"}, '{}']);
+
+                assert.equals(sync.isNew(), true);
+
+                sync.fetch({
+                    url: url
+                }, spy);
+
+                this.server.respond();
+
+                assert.equals(this.server.requests[0].requestBody, '');
+
+                assert.equals(sync.isNew(), false);
+
+                assert.calledWith(spy);
+            }
+        },
+
+        'with destroy()': {
+            'should take options and callback to make a request with DELETE method': function(){
+                var sync = new this.syncServer({
+                    request: {emulation: false}
+                })
+                var url = 'abc/def';
+                var spy = this.spy();
+
+                this.server.respondWith('DELETE', url, [200, {"content-type": "application/json"}, '{}']);
+
+                sync.destroy({
+                    url: url
+                }, spy);
+
+                this.server.respond();
+
+                assert.equals(this.server.requests[0].requestBody, '');
+
+                assert.calledWith(spy);
+            }
         }
     },
 

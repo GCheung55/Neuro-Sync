@@ -3,48 +3,29 @@
  * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
  * 
  * @type {Class}
- * 
- * @todo Need to setup the url to be like /path/:id. This would allow plugin in data to the url
- * Then set it to the request options url property
  *
  * @requires [MooTools-Core/Class]
  */
 
-var modelObj = require('Neuro/src/model/main'),
-    Sync = require('../sync/main').Sync,
-    Mixins = require('../../mixins/sync');
+var modelObj = require('Neuro/src/model/main');
+var Sync = require('../../mixins/sync').Sync;
 
 var Model = new Class({
     Extends: modelObj.Model,
 
-    Implements: [Mixins.Sync],
-
-    _new: true,
+    Implements: Sync,
 
     options: {
-        request: {},
-        isNew: true
-    },
-
-    isNew: function(){
-        return this._new;
-    },
-
-    setNew: function(bool){
-        this._new = !!bool;
-
-        return this;
+        Sync: {
+            default: undefined,
+            Strategies: {}
+        }
     },
 
     setup: function(data, options){
         this.parent(data, options);
 
-        // Defining whether model is new is optional
-        this.setNew(this.options.isNew);
-
-        this.setSync(this.options.request);
-
-        return this;
+        this.setupSync(this.options.Sync);
     },
 
     _syncSave: function(response, callback){
@@ -55,74 +36,76 @@ var Model = new Class({
             this.set(response);
         }
 
-        this.fireEvent('save', response);
+        this.signalSave(response);
 
-        callback && callback.call(this, response);
+        callback && callback.call(this, response, silent);
 
         return this;
     },
 
-    save: function(callback){
-        // Determine whether method is create or update;
-        var isNew = this.isNew(),
-            method = ['create', 'update'][+isNew],
-            data = this.toJSON();
+    save: function(options, callback){
+        var _this = this;
 
-        // Issue create/update command to server
-        this.sync(method, data, function(response){
-            this._syncSave(response, callback);
+        this.sync('save', options, function(response){
+            _this._syncSave(response, callback, silent);
         });
-
-        // Optimistically set this model as old
-        isNew && this.setNew(false);
 
         return this;
     },
 
     _syncFetch: function(response, callback){
         response = this.process(response);
+
         // If data returns, set it
         if (response) {
             this.set(response);
         }
 
-        this.setNew(false);
-        this.fireEvent('fetch', response);
+        this.signalFetch(response);
 
         callback && callback.call(this, response);
 
         return this;
     },
 
-    fetch: function(callback){
-        var data = this.toJSON();
+    fetch: function(options, callback){
+        var _this = this;
 
-        // Issue read command to server
-        this.sync('read', data, function(response){
-            this._syncFetch(response, callback);
+        this.sync('fetch', options, function(response){
+            _this._syncFetch(response, callback);
         });
 
         return this;
     },
 
     _syncDestroy: function(response, callback){
-        callback && callback.call(this, response);
+        callback && callback.call(this, response)
         return this;
     },
 
-    destroy: function(callback){
-        // Cancel the currently executing request before continuing
-        this.request.cancel();
+    destroy: function(options, callback){
+        var _this = this;
 
-        // Issue delete command to server
-        this.sync('delete', {}, function(response){
-            this._syncDestroy(response, callback);
+        this.cancel();
+
+        this.sync('destroy', options, function(response){
+            _this._syncDestroy(response, callback);
         });
 
         this.parent();
 
         return this;
+    },
+
+    signalSave: function(response){
+        !this.isSilent() && this.fireEvent('save', response);
+        return this;
+    },
+
+    signalFetch: function(response){
+        !this.isSilent() && this.fireEvent('fetch', response);
+        return this;
     }
 });
 
-modelObj.Model =exports.Model = Model;
+modelObj.Model = exports.Model = Model;

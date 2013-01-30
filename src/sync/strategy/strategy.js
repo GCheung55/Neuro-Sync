@@ -5,6 +5,10 @@
 exports.Strategy = new Class({
     Implements: [Events, Options],
 
+    options: {
+        isNew: true
+    },
+
     initialize: function(options){
         this.setOptions(options);
 

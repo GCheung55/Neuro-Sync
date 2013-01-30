@@ -12,9 +12,10 @@
 })({
     "0": function(require, module, exports, global) {
         var Neuro = require("1");
-        Neuro.Sync = require("o").Sync;
-        Neuro.Model = require("p").Model;
-        Neuro.Collection = require("r").Collection;
+        Neuro.Sync = require("o");
+        Neuro.Model = require("t").Model;
+        Neuro.Collection = require("v").Collection;
+        Neuro.Mixins.Sync = require("u").Sync;
         exports = module.exports = Neuro;
     },
     "1": function(require, module, exports, global) {
@@ -1419,146 +1420,140 @@
         exports.Snitch = Snitch;
     },
     o: function(require, module, exports, global) {
-        var REST = function(type) {
-            return function() {
-                this[type].apply(this, arguments);
-                return this;
-            };
+        exports = module.exports = {
+            Request: require("p").Request,
+            Strategy: require("q").Strategy,
+            Strategies: require("r").set({
+                Server: require("s").Server
+            })
         };
-        var Sync = new Class({
-            Extends: Request.JSON,
-            onSuccess: function() {
-                this.fireEvent("complete", arguments).fireEvent("success", arguments).fireEvent("sync", arguments).callChain();
-            },
-            create: REST("POST"),
-            read: REST("GET"),
-            update: REST("PUT")
-        });
-        exports.Sync = Sync;
     },
     p: function(require, module, exports, global) {
-        var modelObj = require("3"), Sync = require("o").Sync, Mixins = require("q");
-        var Model = new Class({
-            Extends: modelObj.Model,
-            Implements: [ Mixins.Sync ],
-            _new: true,
+        exports.Request = new Class({
+            Extends: Request.JSON
+        });
+    },
+    q: function(require, module, exports, global) {
+        exports.Strategy = new Class({
+            Implements: [ Events, Options ],
             options: {
-                request: {},
                 isNew: true
             },
-            isNew: function() {
-                return this._new;
-            },
-            setNew: function(bool) {
-                this._new = !!bool;
+            initialize: function(options) {
+                this.setOptions(options);
+                this.setup(options);
                 return this;
             },
-            setup: function(data, options) {
-                this.parent(data, options);
+            setup: function(options) {
                 this.setNew(this.options.isNew);
-                this.setSync(this.options.request);
                 return this;
             },
-            _syncSave: function(response, callback) {
-                response = this.process(response);
-                if (response) {
-                    this.set(response);
-                }
-                this.fireEvent("save", response);
-                callback && callback.call(this, response);
+            process: function(response) {
+                return response;
+            },
+            sync: function(options, callback) {
                 return this;
             },
-            save: function(callback) {
-                var isNew = this.isNew(), method = [ "create", "update" ][+isNew], data = this.toJSON();
-                this.sync(method, data, function(response) {
-                    this._syncSave(response, callback);
-                });
-                isNew && this.setNew(false);
+            cancel: function() {
                 return this;
             },
-            _syncFetch: function(response, callback) {
-                response = this.process(response);
-                if (response) {
-                    this.set(response);
-                }
-                this.setNew(false);
-                this.fireEvent("fetch", response);
-                callback && callback.call(this, response);
-                return this;
+            isNew: function() {
+                return this._isNew;
             },
-            fetch: function(callback) {
-                var data = this.toJSON();
-                this.sync("read", data, function(response) {
-                    this._syncFetch(response, callback);
-                });
-                return this;
-            },
-            _syncDestroy: function(response, callback) {
-                callback && callback.call(this, response);
-                return this;
-            },
-            destroy: function(callback) {
-                this.request.cancel();
-                this.sync("delete", {}, function(response) {
-                    this._syncDestroy(response, callback);
-                });
-                this.parent();
+            setNew: function(val) {
+                this._isNew = !!val;
                 return this;
             }
         });
-        modelObj.Model = exports.Model = Model;
     },
-    q: function(require, module, exports, global) {
-        var Sync = require("o").Sync, Is = require("5").Is;
-        var SyncSignals = {}, signalSyncPrefix = "signalSync", syncPrefix = "sync:", syncFnc = function(str) {
-            return function() {
-                this.fireEvent(str, arguments);
-                return this;
-            };
-        };
-        SyncSignals[signalSyncPrefix] = syncFnc("sync");
-        [ "Request", "Complete", "Success", "Failure", "Error" ].each(function(item) {
-            SyncSignals[signalSyncPrefix + item] = syncFnc(syncPrefix + item.toLowerCase());
+    r: function(require, module, exports, global) {
+        var Model = require("3").Model, Strategy = require("q").Strategy;
+        var Strategies = new Model({}, {
+            validators: function(prop, val) {
+                return val && Strategy.prototype.isPrototypeOf(val.prototype) && typeOf(val, Class);
+            }
         });
-        SyncSignals = new Class(SyncSignals);
-        var SyncMix = new Class({
-            Implements: [ SyncSignals ],
-            _syncId: 0,
-            _incrementSyncId: function() {
-                this._syncId++;
-                return this;
-            }.protect(),
-            _getSyncId: function() {
-                return this._syncId;
+        exports = module.exports = Strategies;
+    },
+    s: function(require, module, exports, global) {
+        var Strategy = require("q").Strategy, SyncRequest = require("p").Request, Route = require("h").Route;
+        exports.Server = new Class({
+            Extends: Strategy,
+            options: {
+                route: {},
+                request: {}
             },
-            setSync: function(options) {
-                var _this = this, getSyncId = this._getSyncId.bind(this), events = {
+            _id: 0,
+            _incrementId: function() {
+                this._id++;
+                return this;
+            },
+            _getId: function() {
+                return this._id;
+            },
+            setup: function(options) {
+                this.parent(options);
+                this.setupRequest(this.options.request);
+                return this;
+            },
+            setupRequest: function(options) {
+                if (this.request) {
+                    Object.each(this.request.$events, function(val, key) {
+                        this.request.removeEvents(key);
+                    }, this);
+                }
+                var request = new SyncRequest(options);
+                this.request = (this.attachRequestEvents(request), request);
+                return this;
+            },
+            attachRequestEvents: function(req) {
+                var _this = this, getId = this._getId.bind(this), cancelOnce = function() {
+                    _this.fireEvent("success:" + getId());
+                };
+                req && req.addEvent && Object.each({
                     request: function() {
-                        _this.signalSyncRequest();
+                        _this.fireEvent("request");
                     },
                     complete: function(response) {
-                        _this.signalSyncComplete(response);
+                        _this.fireEvent("complete", _this.process(response));
                     },
                     success: function(response) {
-                        _this.signalSyncSuccess(response);
+                        _this.fireEvent("success", _this.process(response));
+                        cancelOnce();
                     },
                     failure: function() {
-                        _this.signalSyncFailure();
-                        _this.fireEvent("sync:" + getSyncId());
+                        _this.fireEvent("failure");
+                        cancelOnce();
                     },
                     error: function() {
-                        _this.signalSyncError();
-                        _this.fireEvent("sync:" + getSyncId());
-                    },
-                    sync: function(response) {
-                        _this.signalSync(response);
-                        _this.fireEvent("sync:" + getSyncId());
+                        _this.fireEvent("error");
+                        cancelOnce();
                     }
-                }, request = new Sync(Object.merge({}, this.options.request, options || {}));
-                this.request = request.addEvents(events);
+                }, function(val, key) {
+                    req.addEvent(key, val, true);
+                }, this);
                 return this;
             },
-            syncCheck: function() {
+            sync: function(options, callback) {
+                var request = this.request;
+                if (!this.check(options, callback)) {
+                    return this;
+                }
+                if (typeOf(options) == "function") {
+                    callback = options;
+                    options = {};
+                }
+                options = Object.merge({}, this.options.request, options);
+                this._incrementId();
+                if (callback && typeOf(callback) == "function") {
+                    this._addEventOnce(function() {
+                        callback.apply(this, arguments);
+                    });
+                }
+                request.send(options);
+                return this;
+            },
+            check: function() {
                 var request = this.request;
                 if (!request.running) return true;
                 switch (request.options.link) {
@@ -1571,22 +1566,14 @@
                 }
                 return false;
             },
-            sync: function(method, data, callback) {
-                var request = this.request;
-                if (!this.syncCheck(method, data, callback)) return this;
-                this._incrementSyncId();
-                method = request[method] ? method : "read";
-                if (callback && Is.Function(callback)) {
-                    this._addEventOnce(function() {
-                        callback.apply(this, arguments);
-                        this.fireEvent(method, arguments);
-                    });
-                }
-                request[method](data);
+            cancel: function() {
+                this.request.cancel();
+                this.fireEvent("cancel");
+                this.fireEvent("success:" + this._getId());
                 return this;
             },
             _addEventOnce: function(fnc) {
-                var type = "sync", syncId = this._getSyncId(), cancelType = type + ":" + syncId, once, cancel;
+                var type = "success", id = this._getId(), cancelType = type + ":" + id, once, cancel;
                 cancel = function() {
                     this.removeEvent(type, once);
                     this.removeEvent(cancelType, cancel);
@@ -1598,48 +1585,210 @@
                 this.addEvent(type, once);
                 this.addEvent(cancelType, cancel);
                 return this;
-            }.protect(),
+            },
+            save: function(options, callback) {
+                var cb = function() {
+                    this.setNew(false);
+                    callback.apply(null, arguments);
+                }.bind(this);
+                options = Object.merge({}, options, {
+                    method: [ "update", "create" ][+this.isNew()]
+                });
+                this.sync(options, cb);
+            },
+            fetch: function(options, callback) {
+                var cb = function() {
+                    this.setNew(false);
+                    callback.apply(null, arguments);
+                }.bind(this);
+                options = Object.merge({}, options, {
+                    method: "read"
+                });
+                this.sync(options, cb);
+            },
+            destroy: function(options, callback) {
+                options = Object.merge({}, options, {
+                    method: "delete"
+                });
+                this.sync.apply(this, arguments);
+            }
+        });
+    },
+    t: function(require, module, exports, global) {
+        var modelObj = require("3");
+        var Sync = require("u").Sync;
+        var Model = new Class({
+            Extends: modelObj.Model,
+            Implements: Sync,
+            options: {
+                Sync: {
+                    "default": undefined,
+                    Strategies: {}
+                }
+            },
+            setup: function(data, options) {
+                this.parent(data, options);
+                this.setupSync(this.options.Sync);
+            },
+            _syncSave: function(response, callback) {
+                response = this.process(response);
+                if (response) {
+                    this.set(response);
+                }
+                this.signalSave(response);
+                callback && callback.call(this, response, silent);
+                return this;
+            },
+            save: function(options, callback) {
+                var _this = this;
+                this.sync("save", options, function(response) {
+                    _this._syncSave(response, callback, silent);
+                });
+                return this;
+            },
+            _syncFetch: function(response, callback) {
+                response = this.process(response);
+                if (response) {
+                    this.set(response);
+                }
+                this.signalFetch(response);
+                callback && callback.call(this, response);
+                return this;
+            },
+            fetch: function(options, callback) {
+                var _this = this;
+                this.sync("fetch", options, function(response) {
+                    _this._syncFetch(response, callback);
+                });
+                return this;
+            },
+            _syncDestroy: function(response, callback) {
+                callback && callback.call(this, response);
+                return this;
+            },
+            destroy: function(options, callback) {
+                var _this = this;
+                this.cancel();
+                this.sync("destroy", options, function(response) {
+                    _this._syncDestroy(response, callback);
+                });
+                this.parent();
+                return this;
+            },
+            signalSave: function(response) {
+                !this.isSilent() && this.fireEvent("save", response);
+                return this;
+            },
+            signalFetch: function(response) {
+                !this.isSilent() && this.fireEvent("fetch", response);
+                return this;
+            }
+        });
+        modelObj.Model = exports.Model = Model;
+    },
+    u: function(require, module, exports, global) {
+        var Strategies = require("r");
+        var Silence = require("6").Silence;
+        var Model = require("3").Model;
+        exports.Sync = new Class({
+            Implements: [ Class.Binds, Events, Silence ],
+            setupSync: function(options) {
+                options = Object.merge({}, {
+                    "default": undefined,
+                    Strategies: {}
+                }, options);
+                this._strategies = new Model;
+                this.setStrategy(options.Strategies);
+                this.changeStrategy(options.default);
+                return this;
+            },
+            setStrategy: function(name, options) {
+                var strategy = Strategies.get(name);
+                var instance;
+                options = options || {};
+                if (strategy) {
+                    instance = new strategy(options);
+                    this._strategies.set(name, instance);
+                }
+                return this;
+            }.overloadSetter(),
+            getStrategy: function(name) {
+                return this._strategies.get(name);
+            }.overloadGetter(),
+            getCurrentStrategy: function() {
+                return this.getStrategy(this._currentStrategy);
+            },
+            changeStrategy: function(name) {
+                var strategy = this._strategies.get(name);
+                strategy && (this._currentStrategy = name);
+                return this;
+            },
+            useStrategy: function(name, callback) {
+                var current;
+                if (this.getStrategy(name)) {
+                    current = this._currentStrategy;
+                    this.changeStrategy(name);
+                    callback.call(this);
+                    this.changeStrategy(current);
+                }
+                return this;
+            },
+            sync: function(method, options, callback) {
+                var strategy = this.getCurrentStrategy();
+                var cb = callback;
+                method = method || "sync";
+                if (this.isSilent()) {
+                    cb = this.silence.bind(this, callback);
+                }
+                strategy[method].call(strategy, options, cb);
+                return this;
+            },
             process: function(response) {
                 return response;
             },
             cancel: function() {
-                this.request.cancel();
-                this.fireEvent("sync:" + this._getSyncId());
+                var strategy = this.getStrategy(this._currentStrategy);
+                strategy && strategy.cancel();
                 return this;
             }
         });
-        exports.Sync = SyncMix;
     },
-    r: function(require, module, exports, global) {
-        var collectionObj = require("c"), Model = require("p").Model, Sync = require("o").Sync, Mixins = require("q");
+    v: function(require, module, exports, global) {
+        var collectionObj = require("c");
+        var modelObj = require("t");
+        var Sync = require("u").Sync;
         var Collection = new Class({
             Extends: collectionObj.Collection,
-            Implements: [ Mixins.Sync ],
+            Implements: [ Sync ],
             options: {
-                request: {},
-                Model: {
-                    constructor: Model
+                Sync: {
+                    "default": undefined,
+                    Strategies: {}
                 }
             },
-            setup: function(models, options) {
-                this.parent(models, options);
-                this.setSync();
+            setup: function(data, options) {
+                this.parent(data, options);
+                this.setupSync(this.options.Sync);
             },
-            _syncFetch: function(response, empty, callback) {
+            _syncFetch: function(response, callback, empty) {
                 response = this.process(response);
                 if (response) {
                     empty && this.empty();
                     this.add(response);
                 }
-                this.fireEvent("fetch", response);
+                this.signalFetch(response);
                 callback && callback.call(this, response);
                 return this;
             },
-            fetch: function(empty, callback) {
-                var data = this.toJSON();
-                this.sync("read", data, function(response) {
-                    this._syncFetch(response, empty, callback);
+            fetch: function(options, callback, empty) {
+                var _this = this;
+                this.sync("fetch", options, function(response) {
+                    _this._syncFetch(response, callback, empty);
                 });
+                return this;
+            },
+            signalFetch: function(response) {
+                !this.isSilent() && this.fireEvent("fetch", response);
                 return this;
             }
         });

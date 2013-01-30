@@ -1,158 +1,125 @@
-/**
- * Inspired by Epitome.Model.Sync by Dimitar Christoff (https://github.com/DimitarChristoff/Epitome)
- * @requires [MooTools-Core/Class]
- */
+var Strategies = require('../src/sync/strategies');
+var Silence = require('Neuro/mixins/silence').Silence;
+var Model = require('Neuro/src/model/main').Model;
 
-var Sync = require('../src/sync/main').Sync,
-    Is = require('neuro-is').Is;
+exports.Sync = new Class({
+    Implements: [Class.Binds, Events, Silence],
 
-/**
- * Create a Class that contains all the Sync specific Signals
- * @type {Object}
- */
-var SyncSignals = {}, 
-    signalSyncPrefix = 'signalSync',
-    syncPrefix = 'sync:',
-    syncFnc = function(str){
-        return function(){
-            this.fireEvent(str, arguments);
-            return this;
-        };
-    };
+    setupSync: function(options){
+        options = Object.merge({}, {
+            default: undefined, 
+            Strategies: {}
+        }, options);
 
-SyncSignals[signalSyncPrefix] = syncFnc('sync');
+        this._strategies = new Model;
 
-['Request', 'Complete', 'Success', 'Failure', 'Error'].each(function(item){
-    SyncSignals[signalSyncPrefix + item] = syncFnc(syncPrefix + item.toLowerCase());
-});
+        this.setStrategy(options.Strategies);
 
-SyncSignals = new Class(SyncSignals);
-
-var SyncMix = new Class({
-    Implements: [SyncSignals],
-
-    _syncId: 0,
-
-    _incrementSyncId: function(){
-        this._syncId++;
-        return this;
-    }.protect(),
-
-    _getSyncId: function(){
-        return this._syncId;
-    },
-
-    setSync: function(options){
-        var _this = this,
-            getSyncId = this._getSyncId.bind(this),
-            events = {
-                request: function(){
-                    _this.signalSyncRequest();
-                },
-                complete: function(response){
-                    _this.signalSyncComplete(response);
-                },
-                success: function(response){
-                    _this.signalSyncSuccess(response);
-                },
-                failure: function(){
-                    _this.signalSyncFailure();
-                    _this.fireEvent('sync:' + getSyncId());
-                },
-                error: function(){
-                    _this.signalSyncError();
-                    _this.fireEvent('sync:' + getSyncId());
-                },
-                sync: function(response){
-                    _this.signalSync(response);
-                    _this.fireEvent('sync:' + getSyncId());
-                }
-            },
-            request = new Sync(Object.merge({}, this.options.request, options || {}));
-
-        this.request = request.addEvents(events);
+        this.changeStrategy(options.default);
 
         return this;
     },
 
-    // Implement just the original check method so that SyncMix's sync method can do the same
-    // that Request does. It provides chaining when using the sync method.
-    syncCheck: function(){
-        var request = this.request;
+    // attachStrategyEvents: function(strategy){
+    //     strategy.addEvents({
+    //         'success': this.bound('signalSync'),
+    //         'cancel': this.bound('signalSyncCancel')
+    //     });
 
-        if (!request.running) return true;
-        switch (request.options.link){
-            case 'cancel': this.cancel(); return true;
-            case 'chain': request.chain(this.caller.pass(arguments, this)); return false;
-        }
-        return false;
-    },
+    //     return this;
+    // },
 
-    sync: function(method, data, callback){
-        var request = this.request;
-        // This will utilize requests check to decide to cancel and continue, or chain
-        if (!this.syncCheck(method, data, callback)) return this;
+    // detachStrategyEvents: function(strategy){
+    //     strategy.removeEvents({
+    //         'success': this.bound('signalSync'),
+    //         'cancel': this.bound('signalSyncCancel')
+    //     });
 
-        this._incrementSyncId();
+    //     return this;
+    // },
 
-        // default to read if the type doesn't exist
-        method = request[method] ? method : 'read';
+    setStrategy: function(name, options){
+        var strategy = Strategies.get(name)
+        var instance;
 
-        // Doesn't need to pass data because request would use request.options.data by default
-        // data = data ? data : this.toJSON();
+        options = options || {};
 
-        if (callback && Is.Function(callback)) {            
-            // this.incrementOnceId();
-            this._addEventOnce(function(){
-                callback.apply(this, arguments);
-                this.fireEvent(method, arguments);
-            });
+        if (strategy) {
+            instance = new strategy(options);
+            
+            // this.attachStrategyEvents(instance);
+
+            this._strategies.set(name, instance);
         }
 
-        request[method](data);
+        return this;
+    }.overloadSetter(),
+
+    getStrategy: function(name){
+        return this._strategies.get(name);
+    }.overloadGetter(),
+
+    getCurrentStrategy: function(){
+        return this.getStrategy(this._currentStrategy);
+    },
+
+    changeStrategy: function(name){
+        var strategy = this._strategies.get(name);
+
+        strategy && (this._currentStrategy = name);
 
         return this;
     },
 
-    _addEventOnce: function(fnc){
-        var type = 'sync',
-            syncId = this._getSyncId(),
-            cancelType = type + ':' + syncId,
-            once, cancel;
+    useStrategy: function(name, callback){
+        var current;
 
-        cancel = function(){
-            this.removeEvent(type, once);
-            this.removeEvent(cancelType, cancel);
-        };
+        if (this.getStrategy(name)) {
+            current = this._currentStrategy;
 
-        once = function(){
-            fnc.apply(this, arguments);
-            cancel.call(this);
-        };
+            this.changeStrategy(name);
 
-        this.addEvent(type, once);
-        this.addEvent(cancelType, cancel);
+            callback.call(this);
+
+            this.changeStrategy(current);
+        }
 
         return this;
-    }.protect(),
+    },
 
-    /**
-     * Process the response data before it's added or set by the Collection or Model during request response.
-     * This should be refactored by your super Class of Collection or Model.
-     * @param  {Object} response The response object from the request
-     * @return {Object}          The returned object would be used to add / set in the Collection or Model. Nothing returned means nothing is added / set.
-     */
+    sync: function(method, options, callback){
+        var strategy = this.getCurrentStrategy();
+        var cb = callback;
+
+        method = method || 'sync';
+
+        if (this.isSilent()) {
+            cb = this.silence.bind(this, callback);
+        }
+
+        strategy[method].call(strategy, options, cb);
+
+        return this;
+    },
+
     process: function(response){
         return response;
     },
 
     cancel: function(){
-        this.request.cancel();
-        this.fireEvent('sync:' + this._getSyncId());
+        var strategy = this.getStrategy(this._currentStrategy)
+        strategy && strategy.cancel();
         return this;
     }
+
+    // ,signalSync: function(response){
+    //     !this.isSilent() && this.fireEvent('sync', [this].append(arguments));
+    //     return this;
+    // },
+
+    // signalSyncCancel: function(){
+    //     !this.isSilent() && this.fireEvent('sync:cancel', [this]);
+    //     return this;
+    // }
+
 });
-
-
-
-exports.Sync = SyncMix;

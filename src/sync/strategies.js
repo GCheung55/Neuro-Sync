@@ -6,7 +6,7 @@ var Strategies = new Model({}, {
     // Make sure that all strategies extend from Strategy Class
     // And should be a Class, not an Object, is what an Class instance is
     validators: function(prop, val){
-        return Strategy.prototype.isPrototypeOf(val.prototype) && typeOf(val, Class);
+        return val && Strategy.prototype.isPrototypeOf(val.prototype) && typeOf(val, Class);
     }
 });
 
